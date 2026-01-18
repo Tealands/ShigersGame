@@ -1,42 +1,46 @@
 <!DOCTYPE HTML>
 <html lang="ja">
+
 <head>
-<link rel="icon" href="/KeepOut/Shiger.jpg" type="image/x-icon">
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>正解したときのページ</title>
-<style>
-header {
-    padding: 20px;
-    text-align: center;
-    background-color: #75d0e9;
-}
-body {
-    background-color: rgb(15, 177, 213);
-    color: rgb(65, 200, 67);
-    font-family: Arial, sans-serif;
-    margin: 18px;
-    padding: 18px;
-    text-align: center;
-}
-button {
-    padding: 10px 20px;
-    font-size: 20px;
-    margin: 5px;
-    background-color: rgb(255, 255, 255);
-    color:  rgb(65, 200, 67);
-}
-#result {
-    margin-top: 20px;
-    font-size: 18px;
-    font-weight: bold;
-}
-</style>
+    <link rel="icon" href="https://x.com/yeah_hi0525/status/2012856884806754465/photo/1" type="image/x-icon">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>正解したときのページ</title>
+    <style>
+        header {
+            padding: 20px;
+            text-align: center;
+            background-color: #75d0e9;
+        }
+
+        body {
+            background-color: rgb(15, 177, 213);
+            color: rgb(65, 200, 67);
+            font-family: Arial, sans-serif;
+            margin: 18px;
+            padding: 18px;
+            text-align: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 20px;
+            margin: 5px;
+            background-color: rgb(255, 255, 255);
+            color: rgb(65, 200, 67);
+        }
+
+        #result {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
 </head>
+
 <body>
-    <img src="https://ichef.bbci.co.uk/ace/ws/640/cpsprodpb/8123/production/_126795033_forbbconly.jpg" 
-         alt="エリザベス女王の写真" 
-         class="">
+    <img src="https://ichef.bbci.co.uk/ace/ws/640/cpsprodpb/8123/production/_126795033_forbbconly.jpg" alt="エリザベス女王の写真"
+        class="">
     <h1>Congratulation!</h1>
     <ul id="links" style="display:none;">
         <a href="https://tealands.github.io/Tealands_page/">しげるのページに戻る</a>
@@ -46,7 +50,7 @@ button {
     </ul>
     <button id="nextButton" onclick="playAudio()">次へ</button>
     <audio id="audioPlayer" src="/KeepOut/rule_britannia.mp3" style="display:none;"></audio>
-   
+
     <script>
         function playAudio() {
             var audio = document.getElementById('audioPlayer');
@@ -57,7 +61,7 @@ button {
         }
 
         // Enterキーで次の問題へ進む処理を追加
-        document.getElementById('answerInput')?.addEventListener('keydown', function(event) {
+        document.getElementById('answerInput')?.addEventListener('keydown', function (event) {
             if (event.key === 'Enter') {
                 checkAnswer();
                 setTimeout(generateQuestion, 500); // 答え合わせ後0.5秒待って次の問題を生成
@@ -75,4 +79,5 @@ button {
         }
     </script>
 </body>
+
 </html>
