@@ -1,16 +1,39 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
     <link rel="icon" href="KeepOut/Shiger.jpg" type="image/x-icon">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Redirecting...</title>
-    <script>
-        window.location.href = "NumberPlace.html";
-    </script>
+    <title>ホーム</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            color: #333;
+        }
+        .game-button {
+            display: inline-block;
+            margin: 20px;
+            padding: 20px 40px;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 18px;
+        }
+        .game-button:hover {
+            background-color: #45a049;
+        }
+    </style>
 </head>
 <body>
-    <p>If you are not redirected, <a href="NumberPlace.html">click here</a>.</p>
+    <h1>ゲームを選択してください</h1>
+    <a href="NumberPlace.html" class="game-button">Number Place</a>
+    <a href="move_stone.html" class="game-button">囲碁</a>
 </body>
 </html></content>
 <parameter name="filePath">/home/tea-ingland/maximum/Developing/NumberPlace/index.html
