@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>五目並べ - 次手予想モード</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'M PLUS Rounded 1c', 'Inter', sans-serif;
+            background-color: #0f172a;
+        }
+        .board-grid {
+            background-color: #e5a95d;
+            background-image: radial-gradient(#d99343 1px, transparent 0);
+            background-size: 24px 24px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.3), 0 10px 25px -5px rgba(0,0,0,0.5);
+        }
+        .wood-pattern {
+            background-color: #d97706;
+            background-image: radial-gradient(#b45309 1px, transparent 0), linear-gradient(to bottom, #d97706, #b45309);
+        }
+        /* Pulse effect for prediction target */
+        @keyframes prediction-pulse {
+            0%, 100% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.15); opacity: 1; }
+        }
+        .animate-prediction {
+            animation: prediction-pulse 1.2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col justify-between selection:bg-amber-500 selection:text-slate-900">
+
+    <!-- Header -->
+    <header class="bg-slate-900/80 backdrop-blur border-b border-slate-800 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="bg-amber-500 text-slate-950 p-2 rounded-xl font-bold flex items-center gap-1 shadow-lg shadow-amber-500/20">
+                    <i data-lucide="grid" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-lg sm:text-xl text-amber-400 leading-tight">Gomoku Prediction</h1>
+                    <p class="text-xs text-slate-400">待ち時間で遊ぶ次手予想五目並べ</p>
+                </div>
+            </div>
+            
+            <!-- Overall Score Badge -->
+            <div class="flex items-center gap-3">
+                <div class="bg-slate-800/90 border border-amber-500/30 rounded-xl px-4 py-1.5 flex items-center gap-2">
+                    <i data-lucide="trophy" class="w-5 h-5 text-amber-400"></i>
+                    <div>
+                        <div class="text-[10px] uppercase font-bold text-slate-400 leading-none">Total Points</div>
+                        <div id="totalScore" class="text-xl font-black text-amber-400 leading-tight">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left Side: Status & Controls (4 Cols) -->
+        <div class="lg:col-span-4 space-y-4">
+            
+            <!-- Game Status Box -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">対局ステータス</span>
+                    <span id="gameModeBadge" class="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs px-2.5 py-1 rounded-full font-semibold">VS AI (中級)</span>
+                </div>
+
+                <div class="flex items-center justify-between bg-slate-900/60 p-4 rounded-xl border border-slate-700/50 mb-4">
+                    <div class="flex items-center space-x-3">
+                        <div id="playerIndicator" class="w-7 h-7 rounded-full bg-slate-950 border-2 border-slate-400 shadow-md"></div>
+                        <div>
+                            <div class="text-xs text-slate-400">手番</div>
+                            <div id="turnText" class="font-bold text-slate-200">あなたの番 (黒)</div>
+                        </div>
+                    </div>
+                    <div id="thinkingSpinner" class="hidden flex items-center gap-2 text-amber-400 text-xs font-medium">
+                        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                        <span id="thinkingTimeText">AI思考中 (3s)</span>
+                    </div>
+                </div>
+
+                <!-- Prediction Status Card -->
+                <div class="bg-slate-900/90 border border-amber-500/40 rounded-xl p-4 relative overflow-hidden">
+                    <div class="absolute -right-4 -bottom-4 opacity-10 text-amber-400 pointer-events-none">
+                        <i data-lucide="target" class="w-24 h-24"></i>
+                    </div>
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="target" class="w-5 h-5 text-amber-400"></i>
+                            <h3 class="font-bold text-amber-400 text-sm">次手予想システム</h3>
+                        </div>
+                        <span class="text-[11px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30 font-semibold">ON</span>
+                    </div>
+                    <p class="text-xs text-slate-300 mb-3 leading-relaxed">
+                        相手が長考している間に相手が着手する場所を予想！
+                    </p>
+                    <div class="grid grid-cols-2 gap-2 text-center text-xs">
+                        <div class="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
+                            <div class="text-slate-400 text-[10px]">的中ボーナス</div>
+                            <div class="text-emerald-400 font-bold text-sm">+1 pt</div>
+                        </div>
+                        <div class="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
+                            <div class="text-slate-400 text-[10px]">外れペナルティ</div>
+                            <div class="text-rose-400 font-bold text-sm">-1 pt</div>
+                        </div>
+                    </div>
+                    <div class="mt-3 bg-amber-950/40 border border-amber-500/20 rounded-lg p-2 flex items-center justify-between text-xs">
+                        <span class="text-slate-300">勝利時達成報酬:</span>
+                        <span class="font-extrabold text-amber-400 text-sm">+100 pt</span>
+                    </div>
+                </div>
+
+                <!-- Current Game Prediction Stats -->
+                <div class="mt-4 pt-4 border-t border-slate-800 grid grid-cols-3 gap-2 text-center">
+                    <div>
+                        <div class="text-xs text-slate-400">予想数</div>
+                        <div id="statTotal" class="text-lg font-bold text-slate-200">0</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-400">的中</div>
+                        <div id="statHits" class="text-lg font-bold text-emerald-400">0</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-400">的中率</div>
+                        <div id="statAccuracy" class="text-lg font-bold text-amber-400">0%</div>
+                    </div>
+                </div>
+
+                <!-- Action Controls -->
+                <div class="mt-5 space-y-2">
+                    <button id="resetBtn" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                        盤面リセット
+                    </button>
+                    <div class="flex gap-2">
+                        <button id="modeAiBtn" class="flex-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs py-2 rounded-lg font-bold transition">
+                            VS AI モード
+                        </button>
+                        <button id="modePvpBtn" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700 text-xs py-2 rounded-lg font-bold transition">
+                            2P 対戦モード
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prediction & Match History Log -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+                    <i data-lucide="history" class="w-4 h-4 text-slate-400"></i>
+                    予想ログ・対局履歴
+                </h3>
+                <div id="logContainer" class="h-44 overflow-y-auto space-y-2 pr-1 text-xs">
+                    <div class="text-slate-500 text-center py-6 italic">対局が始まると予想結果が表示されます</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Side: Gomoku Board (8 Cols) -->
+        <div class="lg:col-span-8 flex flex-col items-center justify-center">
+            
+            <!-- Board Container -->
+            <div class="relative max-w-full p-2 sm:p-4 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl">
+                
+                <!-- Prediction Hint Toast -->
+                <div id="predictionToast" class="absolute top-2 left-1/2 transform -translate-x-1/2 bg-slate-900/95 text-amber-300 text-xs font-bold px-4 py-1.5 rounded-full border border-amber-500/40 shadow-xl flex items-center gap-2 z-20 transition-all duration-300 opacity-0 pointer-events-none">
+                    <i data-lucide="target" class="w-4 h-4 text-amber-400 animate-spin"></i>
+                    <span id="predictionToastText">相手の次手を予想してマスを選択できます！</span>
+                </div>
+
+                <!-- Board Frame -->
+                <div id="board" class="relative board-grid rounded-xl shadow-inner grid border border-amber-900/70 select-none cursor-pointer"
+                     style="grid-template-columns: repeat(15, minmax(0, 1fr)); width: min(85vw, 560px); height: min(85vw, 560px);">
+                    <!-- Board Cells generated by JS -->
+                </div>
+
+            </div>
+
+            <!-- Legends / Instructions -->
+            <div class="mt-4 flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs text-slate-400">
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded-full bg-slate-950 border border-slate-400 shadow"></div>
+                    <span>先手 (黒石)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded-full bg-slate-100 border border-slate-400 shadow"></div>
+                    <span>後手 (白石)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded-full border-2 border-dashed border-amber-400 bg-amber-500/30 flex items-center justify-center text-amber-400 text-[10px] font-bold">🎯</div>
+                    <span>あなたの予想位置</span>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900/60 border-t border-slate-800/60 py-3 text-center text-xs text-slate-500">
+        五目並べ + 次手予想チャレンジ &copy; 2026
+    </footer>
+
+    <!-- Result Modal -->
+    <div id="resultModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center transform scale-95 transition-transform duration-300" id="modalCard">
+            <div id="modalIconBg" class="w-20 h-20 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-500/30 shadow-lg">
+                <i id="modalIcon" data-lucide="trophy" class="w-10 h-10"></i>
+            </div>
+            
+            <h2 id="modalTitle" class="text-2xl font-black text-slate-100 mb-1">勝利！</h2>
+            <p id="modalSubtitle" class="text-sm text-slate-400 mb-6">見事な勝利です！</p>
+            
+            <!-- Game Result Breakdown -->
+            <div class="bg-slate-800/90 rounded-2xl p-4 border border-slate-700/60 mb-6 space-y-3">
+                <div class="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-700/50">
+                    <span>勝敗ボーナス</span>
+                    <span id="winBonusText" class="font-bold text-amber-400">+100 pt</span>
+                </div>
+                <div class="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-700/50">
+                    <span>次手予想（的中 <span id="modalHits">0</span> 回 / 外れ <span id="modalMisses">0</span> 回）</span>
+                    <span id="predictionScoreText" class="font-bold text-emerald-400">+0 pt</span>
+                </div>
+                <div class="flex justify-between items-center text-sm font-bold text-slate-100 pt-1">
+                    <span>獲得合計ポイント</span>
+                    <span id="modalTotalEarned" class="text-xl text-amber-400 font-extrabold">+100 pt</span>
+                </div>
+            </div>
+
+            <button id="modalPlayAgainBtn" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold py-3 rounded-xl transition shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2">
+                <i data-lucide="play" class="w-5 h-5 fill-current"></i>
+                もう一度遊ぶ
+            </button>
+        </div>
+    </div>
+
+    <!-- JavaScript Game Logic -->
+    <script>
+        // Constants & Config
+        const BOARD_SIZE = 15;
+        const EMPTY = 0;
+        const BLACK = 1; // Player (usually)
+        const WHITE = 2; // AI / Player 2
+
+        // Game State
+        let board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(EMPTY));
+        let currentPlayer = BLACK;
+        let isGameOver = false;
+        let isVsAi = true;
+        let playerStone = BLACK;
+        let aiThinking = false;
+        let aiTimerInterval = null;
+
+        // Prediction State
+        let predictionCell = null; // {r, c}
+        let totalPredictions = 0;
+        let correctPredictions = 0;
+        let predictionPointsCurrentGame = 0;
+        let grandTotalScore = 0;
+
+        // History Log
+        let moveHistory = [];
+
+        // DOM Elements
+        const boardEl = document.getElementById('board');
+        const turnTextEl = document.getElementById('turnText');
+        const playerIndicatorEl = document.getElementById('playerIndicator');
+        const thinkingSpinnerEl = document.getElementById('thinkingSpinner');
+        const thinkingTimeTextEl = document.getElementById('thinkingTimeText');
+        const totalScoreEl = document.getElementById('totalScore');
+        const statTotalEl = document.getElementById('statTotal');
+        const statHitsEl = document.getElementById('statHits');
+        const statAccuracyEl = document.getElementById('statAccuracy');
+        const logContainerEl = document.getElementById('logContainer');
+        const predictionToastEl = document.getElementById('predictionToast');
+        const predictionToastTextEl = document.getElementById('predictionToastText');
+        const gameModeBadgeEl = document.getElementById('gameModeBadge');
+
+        // Modal Elements
+        const resultModalEl = document.getElementById('resultModal');
+        const modalCardEl = document.getElementById('modalCard');
+        const modalIconBgEl = document.getElementById('modalIconBg');
+        const modalIconEl = document.getElementById('modalIcon');
+        const modalTitleEl = document.getElementById('modalTitle');
+        const modalSubtitleEl = document.getElementById('modalSubtitle');
+        const winBonusTextEl = document.getElementById('winBonusText');
+        const modalHitsEl = document.getElementById('modalHits');
+        const modalMissesEl = document.getElementById('modalMisses');
+        const predictionScoreTextEl = document.getElementById('predictionScoreText');
+        const modalTotalEarnedEl = document.getElementById('modalTotalEarned');
+        const modalPlayAgainBtn = document.getElementById('modalPlayAgainBtn');
+
+        // Initialize Board UI
+        function initBoardUI() {
+            boardEl.innerHTML = '';
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'relative flex items-center justify-center cursor-pointer border-[0.5px] border-amber-900/20 hover:bg-amber-500/20 transition-colors';
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+                    
+                    // Star Points (天元・星)
+                    if ((r === 3 || r === 7 || r === 11) && (c === 3 || c === 7 || c === 11)) {
+                        const star = document.createElement('div');
+                        star.className = 'w-1.5 h-1.5 rounded-full bg-amber-950/80 absolute z-0 pointer-events-none';
+                        cell.appendChild(star);
+                    }
+
+                    cell.addEventListener('click', () => handleCellClick(r, c));
+                    boardEl.appendChild(cell);
+                }
+            }
+        }
+
+        // Render Current Board State & Markers
+        function renderBoard() {
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const cellIndex = r * BOARD_SIZE + c;
+                    const cellEl = boardEl.children[cellIndex];
+                    
+                    // Clear previous stone/prediction element (keep star point if any)
+                    const existingStone = cellEl.querySelector('.stone');
+                    if (existingStone) existingStone.remove();
+
+                    const existingPrediction = cellEl.querySelector('.prediction-marker');
+                    if (existingPrediction) existingPrediction.remove();
+
+                    const val = board[r][c];
+
+                    // Render Stone
+                    if (val !== EMPTY) {
+                        const stone = document.createElement('div');
+                        stone.className = `stone w-[82%] h-[82%] rounded-full shadow-lg z-10 transform transition-all scale-100 ${
+                            val === BLACK 
+                            ? 'bg-gradient-to-br from-slate-700 via-slate-900 to-black border border-slate-700' 
+                            : 'bg-gradient-to-br from-white via-slate-100 to-slate-300 border border-slate-300'
+                        }`;
+                        
+                        // Highlight last move
+                        if (moveHistory.length > 0) {
+                            const lastMove = moveHistory[moveHistory.length - 1];
+                            if (lastMove.r === r && lastMove.c === c) {
+                                const dot = document.createElement('div');
+                                dot.className = `w-2 h-2 rounded-full absolute ${val === BLACK ? 'bg-amber-400' : 'bg-red-500'}`;
+                                stone.appendChild(dot);
+                                stone.classList.add('flex', 'items-center', 'justify-center');
+                            }
+                        }
+
+                        cellEl.appendChild(stone);
+                    } 
+                    // Render Prediction Marker
+                    else if (predictionCell && predictionCell.r === r && predictionCell.c === c) {
+                        const predMarker = document.createElement('div');
+                        predMarker.className = 'prediction-marker w-[70%] h-[70%] rounded-full border-2 border-dashed border-amber-400 bg-amber-500/30 flex items-center justify-center animate-prediction z-10';
+                        predMarker.innerHTML = `<span class="text-[10px] font-black text-amber-300">🎯</span>`;
+                        cellEl.appendChild(predMarker);
+                    }
+                }
+            }
+        }
+
+        // Handle Click on Cell
+        function handleCellClick(r, c) {
+            if (isGameOver) return;
+
+            // If cell already occupied
+            if (board[r][c] !== EMPTY) return;
+
+            // Scenario 1: It's AI's turn (or opponent thinking phase) -> Set/Change Prediction
+            if (isVsAi && currentPlayer !== playerStone) {
+                setPrediction(r, c);
+                return;
+            }
+
+            // Scenario 2: It's Human turn
+            // Execute move
+            makeMove(r, c, currentPlayer);
+
+            // Check Win
+            if (checkWin(r, c, board[r][c])) {
+                endGame(board[r][c]);
+                return;
+            }
+
+            // Check Draw
+            if (isBoardFull()) {
+                endGame(0);
+                return;
+            }
+
+            // Switch Turn
+            currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
+            updateTurnUI();
+
+            // Trigger AI if applicable
+            if (isVsAi && currentPlayer !== playerStone && !isGameOver) {
+                showPredictionToast("相手が考え中... 予想場所を変更・設定できます！");
+                triggerAiMove();
+            } else {
+                hidePredictionToast();
+            }
+        }
+
+        // Set or Update Prediction Target
+        function setPrediction(r, c) {
+            predictionCell = { r, c };
+            renderBoard();
+            addLog(`次手予想を [${r + 1}行, ${c + 1}列] にセットしました`, 'info');
+        }
+
+        // Execute Move
+        function makeMove(r, c, player) {
+            board[r][c] = player;
+            moveHistory.push({ r, c, player });
+
+            // Evaluate Prediction if it was the opponent's move
+            if (predictionCell && player !== playerStone) {
+                totalPredictions++;
+                if (predictionCell.r === r && predictionCell.c === c) {
+                    // Correct!
+                    correctPredictions++;
+        // AI Move Logic (with guaranteed 3-second delay for player prediction)
+        function triggerAiMove() {
+            aiThinking = true;
+            thinkingSpinnerEl.classList.remove('hidden');
+
+            let secondsRemaining = 3;
+            if (thinkingTimeTextEl) {
+                thinkingTimeTextEl.textContent = `AI思考中 (${secondsRemaining}s)`;
+            }
+
+            // Countdown timer UI update
+            if (aiTimerInterval) clearInterval(aiTimerInterval);
+            aiTimerInterval = setInterval(() => {
+                secondsRemaining--;
+                if (secondsRemaining > 0 && thinkingTimeTextEl) {
+                    thinkingTimeTextEl.textContent = `AI思考中 (${secondsRemaining}s)`;
+                } else {
+                    clearInterval(aiTimerInterval);
+                }
+            }, 1000);
+
+            // Execute move after 3 seconds minimum (3000ms - 3500ms)
+            const delay = Math.floor(Math.random() * 500) + 3000;
+
+            setTimeout(() => {
+                if (aiTimerInterval) clearInterval(aiTimerInterval);
+                if (isGameOver) return;
+
+                const aiMove = calculateBestMove(WHITE);
+                makeMove(aiMove.r, aiMove.c, WHITE);
+
+                aiThinking = false;
+                thinkingSpinnerEl.classList.add('hidden');
+
+                if (checkWin(aiMove.r, aiMove.c, WHITE)) {
+                    endGame(WHITE);
+                    return;
+                }
+
+                if (isBoardFull()) {
+                    endGame(0);
+                    return;
+                }
+
+                currentPlayer = BLACK;
+                updateTurnUI();
+                hidePredictionToast();
+            }, delay);
+        }
+
+        // AI Logic: Smart heuristic search (Win block / 4-in-a-row / 3-in-a-row priority)
+        function calculateBestMove(aiPlayer) {
+            const opponent = aiPlayer === BLACK ? WHITE : BLACK;
+
+            // 1. Check if AI can win in this turn
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if (board[r][c] === EMPTY) {
+                        board[r][c] = aiPlayer;
+                        if (checkWin(r, c, aiPlayer)) {
+                            board[r][c] = EMPTY;
+                            return { r, c };
+                        }
+                        board[r][c] = EMPTY;
+                    }
+                }
+            }
+
+            // 2. Block opponent's immediate winning move
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if (board[r][c] === EMPTY) {
+                        board[r][c] = opponent;
+                        if (checkWin(r, c, opponent)) {
+                            board[r][c] = EMPTY;
+                            return { r, c };
+                        }
+                        board[r][c] = EMPTY;
+                    }
+                }
+            }
+
+            // 3. Score candidates based on line lengths
+            let bestScore = -1;
+            let bestMoves = [];
+
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if (board[r][c] === EMPTY) {
+                        let score = evaluateCellScore(r, c, aiPlayer, opponent);
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestMoves = [{ r, c }];
+                        } else if (score === bestScore) {
+                            bestMoves.push({ r, c });
+                        }
+                    }
+                }
+            }
+
+            // Pick a random move among best scoring ones
+            return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+        }
+
+        // Evaluate positional score for AI
+        function evaluateCellScore(r, c, aiPlayer, opponent) {
+            let score = 0;
+            const directions = [
+                [0, 1],  // Horizontal
+                [1, 0],  // Vertical
+                [1, 1],  // Diagonal \
+                [1, -1]  // Diagonal /
+            ];
+
+            // Center weight
+            const centerDist = Math.abs(r - 7) + Math.abs(c - 7);
+            score += (14 - centerDist);
+
+            for (let [dr, dc] of directions) {
+                // AI offense potential
+                const aiCount = countContinuous(r, c, dr, dc, aiPlayer);
+                // Opponent defense urgency
+                const oppCount = countContinuous(r, c, dr, dc, opponent);
+
+                score += Math.pow(10, aiCount);
+                score += Math.pow(8, oppCount);
+            }
+
+            return score;
+        }
+
+        function countContinuous(r, c, dr, dc, player) {
+            let count = 0;
+            // Positive direction
+            let nr = r + dr, nc = c + dc;
+            while (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) {
+                count++;
+                nr += dr;
+                nc += dc;
+            }
+            // Negative direction
+            nr = r - dr; nc = c - dc;
+            while (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) {
+                count++;
+                nr -= dr;
+                nc -= dc;
+            }
+            return count;
+        }
+
+        // Check if 5-in-a-row formed
+        function checkWin(r, c, player) {
+            const directions = [
+                [0, 1],  // Horizontal
+                [1, 0],  // Vertical
+                [1, 1],  // Diagonal \
+                [1, -1]  // Diagonal /
+            ];
+
+            for (let [dr, dc] of directions) {
+                let count = 1;
+
+                // Positive direction
+                let nr = r + dr, nc = c + dc;
+                while (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) {
+                    count++;
+                    nr += dr;
+                    nc += dc;
+                }
+
+                // Negative direction
+                nr = r - dr; nc = c - dc;
+                while (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) {
+                    count++;
+                    nr -= dr;
+                    nc -= dc;
+                }
+
+                if (count >= 5) return true;
+            }
+            return false;
+        }
+
+        function isBoardFull() {
+            return board.every(row => row.every(cell => cell !== EMPTY));
+        }
+
+        // End Game & Calculate Final Points
+        function endGame(winner) {
+            isGameOver = true;
+            hidePredictionToast();
+
+            let winBonus = 0;
+            let isUserWinner = false;
+
+            if (winner === playerStone) {
+                winBonus = 100;
+                grandTotalScore += winBonus;
+                isUserWinner = true;
+                addLog('🎉 あなたの勝利！ 勝利ボーナス +100pt', 'win');
+            } else if (winner === 0) {
+                addLog('🤝 引き分けです', 'info');
+            } else {
+                addLog('💀 相手の勝利です', 'miss');
+            }
+
+            updateStatsUI();
+
+            // Show Modal Result
+            setTimeout(() => {
+                showResultModal(isUserWinner, winner === 0, winBonus);
+            }, 600);
+        }
+
+        // Modal Display
+        function showResultModal(isWinner, isDraw, winBonus) {
+            const misses = totalPredictions - correctPredictions;
+
+            if (isWinner) {
+                modalIconBgEl.className = "w-20 h-20 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-500/30 shadow-lg";
+                modalIconEl.setAttribute('data-lucide', 'trophy');
+                modalTitleEl.textContent = "見事な勝利！";
+                modalTitleEl.className = "text-2xl font-black text-amber-400 mb-1";
+                modalSubtitleEl.textContent = "五目達成 + 次手予想ボーナスを獲得しました！";
+                winBonusTextEl.textContent = `+${winBonus} pt`;
+            } else if (isDraw) {
+                modalIconBgEl.className = "w-20 h-20 bg-slate-700 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-600";
+                modalIconEl.setAttribute('data-lucide', 'minus');
+                modalTitleEl.textContent = "引き分け";
+                modalTitleEl.className = "text-2xl font-black text-slate-300 mb-1";
+                modalSubtitleEl.textContent = "双方譲らぬ好ゲームでした。";
+                winBonusTextEl.textContent = `+0 pt`;
+            } else {
+                modalIconBgEl.className = "w-20 h-20 bg-rose-500/20 text-rose-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-500/30 shadow-lg";
+                modalIconEl.setAttribute('data-lucide', 'frown');
+                modalTitleEl.textContent = "敗北...";
+                modalTitleEl.className = "text-2xl font-black text-rose-400 mb-1";
+                modalSubtitleEl.textContent = "次は勝ちましょう！予想ポイントは引き継がれます。";
+                winBonusTextEl.textContent = `0 pt`;
+            }
+
+            modalHitsEl.textContent = correctPredictions;
+            modalMissesEl.textContent = misses;
+
+            const predSign = predictionPointsCurrentGame >= 0 ? '+' : '';
+            predictionScoreTextEl.textContent = `${predSign}${predictionPointsCurrentGame} pt`;
+            predictionScoreTextEl.className = `font-bold ${predictionPointsCurrentGame >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+            const totalEarnedThisGame = winBonus + predictionPointsCurrentGame;
+            const totalSign = totalEarnedThisGame >= 0 ? '+' : '';
+            modalTotalEarnedEl.textContent = `${totalSign}${totalEarnedThisGame} pt`;
+
+            lucide.createIcons();
+
+            resultModalEl.classList.remove('opacity-0', 'pointer-events-none');
+            modalCardEl.classList.remove('scale-95');
+            modalCardEl.classList.add('scale-100');
+        }
+
+        function hideModal() {
+            resultModalEl.classList.add('opacity-0', 'pointer-events-none');
+            modalCardEl.classList.remove('scale-100');
+            modalCardEl.classList.add('scale-95');
+        }
+
+        // Reset Game
+        function resetGame() {
+            if (aiTimerInterval) clearInterval(aiTimerInterval);
+            board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(EMPTY));
+            currentPlayer = BLACK;
+            isGameOver = false;
+            aiThinking = false;
+            if (thinkingSpinnerEl) thinkingSpinnerEl.classList.add('hidden');
+            predictionCell = null;
+            moveHistory = [];
+
+            // Reset Current Game Stats
+            totalPredictions = 0;
+            correctPredictions = 0;
+            predictionPointsCurrentGame = 0;
+
+            updateStatsUI();
+            updateTurnUI();
+            renderBoard();
+            hidePredictionToast();
+            addLog('新しい対局を開始しました', 'info');
+        }
+
+        // UI Updates
+        function updateTurnUI() {
+            if (currentPlayer === BLACK) {
+                turnTextEl.textContent = isVsAi ? "あなたの番 (黒)" : "Player 1 (黒)";
+                playerIndicatorEl.className = "w-7 h-7 rounded-full bg-slate-950 border-2 border-slate-400 shadow-md";
+            } else {
+                turnTextEl.textContent = isVsAi ? "AIの番 (白)" : "Player 2 (白)";
+                playerIndicatorEl.className = "w-7 h-7 rounded-full bg-slate-100 border-2 border-slate-400 shadow-md";
+            }
+        }
+
+        function updateStatsUI() {
+            totalScoreEl.textContent = grandTotalScore;
+            statTotalEl.textContent = totalPredictions;
+            statHitsEl.textContent = correctPredictions;
+
+            const acc = totalPredictions > 0 ? Math.round((correctPredictions / totalPredictions) * 100) : 0;
+            statAccuracyEl.textContent = `${acc}%`;
+        }
+
+        function showPredictionToast(text) {
+            predictionToastTextEl.textContent = text;
+            predictionToastEl.classList.remove('opacity-0', 'pointer-events-none');
+        }
+
+        function hidePredictionToast() {
+            predictionToastEl.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        function addLog(message, type = 'info') {
+            const item = document.createElement('div');
+            item.className = 'p-2 rounded-lg border text-xs flex items-center justify-between transition-all';
+
+            if (type === 'success') {
+                item.className += ' bg-emerald-950/40 border-emerald-500/30 text-emerald-300';
+            } else if (type === 'miss') {
+                item.className += ' bg-rose-950/40 border-rose-500/30 text-rose-300';
+            } else if (type === 'win') {
+                item.className += ' bg-amber-950/60 border-amber-500/40 text-amber-300 font-bold';
+            } else {
+                item.className += ' bg-slate-900/60 border-slate-700/50 text-slate-400';
+            }
+
+            const time = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+            item.innerHTML = `
+                <span>${message}</span>
+                <span class="text-[10px] opacity-60 font-mono">${time}</span>
+            `;
+
+            // Clear placeholder if first log
+            if (logContainerEl.querySelector('.italic')) {
+                logContainerEl.innerHTML = '';
+            }
+
+            logContainerEl.insertBefore(item, logContainerEl.firstChild);
+        }
+
+        // Mode Toggles
+        document.getElementById('modeAiBtn').addEventListener('click', () => {
+            isVsAi = true;
+            document.getElementById('modeAiBtn').className = "flex-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs py-2 rounded-lg font-bold transition";
+            document.getElementById('modePvpBtn').className = "flex-1 bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700 text-xs py-2 rounded-lg font-bold transition";
+            gameModeBadgeEl.textContent = "VS AI (中級)";
+            resetGame();
+        });
+
+        document.getElementById('modePvpBtn').addEventListener('click', () => {
+            isVsAi = false;
+            document.getElementById('modePvpBtn').className = "flex-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs py-2 rounded-lg font-bold transition";
+            document.getElementById('modeAiBtn').className = "flex-1 bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700 text-xs py-2 rounded-lg font-bold transition";
+            gameModeBadgeEl.textContent = "2P 対戦";
+            resetGame();
+        });
+
+        // Event Listeners
+        document.getElementById('resetBtn').addEventListener('click', resetGame);
+        modalPlayAgainBtn.addEventListener('click', () => {
+            hideModal();
+            resetGame();
+        });
+
+        // Window Init
+        window.onload = function() {
+            lucide.createIcons();
+            initBoardUI();
+            resetGame();
+        };
+    </script>
+</body>
+</html>

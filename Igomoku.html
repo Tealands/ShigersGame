@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>囲碁×五目並べ (Go-Gomoku)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800&family=Zen+Maru+Gothic:wght@400;500;700&display=swap');
+
+        body {
+            font-family: 'Zen Maru Gothic', sans-serif;
+            background-color: #1a1816;
+            color: #e5e7eb;
+        }
+
+        .title-font {
+            font-family: 'Shippori Mincho', serif;
+        }
+
+        /* 木目調テクスチャ背景 */
+        .goban-container {
+            background-color: #e3a857;
+            background-image: 
+                radial-gradient(ellipse at center, rgba(255,255,255,0.15) 0%, rgba(0,0,0,0.1) 100%),
+                repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(120, 70, 20, 0.05) 3px, rgba(120, 70, 20, 0.05) 6px);
+            box-shadow: 
+                0 20px 25px -5px rgba(0, 0, 0, 0.5), 
+                0 10px 10px -5px rgba(0, 0, 0, 0.4),
+                inset 0 0 40px rgba(100, 50, 0, 0.3);
+            border: 12px solid #8c531d;
+            border-radius: 8px;
+        }
+
+        /* 3D効果のある石 */
+        .stone {
+            transition: all 0.2s ease-out;
+            border-radius: 50%;
+        }
+
+        .stone-black {
+            background: radial-gradient(circle at 35% 35%, #555 0%, #111 60%, #000 100%);
+            box-shadow: 2px 3px 6px rgba(0,0,0,0.6), inset -1px -1px 3px rgba(255,255,255,0.2);
+        }
+
+        .stone-white {
+            background: radial-gradient(circle at 35% 35%, #ffffff 0%, #e0e0e0 70%, #d0d0d0 100%);
+            box-shadow: 2px 3px 6px rgba(0,0,0,0.5), inset -1px -1px 2px rgba(0,0,0,0.2);
+        }
+
+        /* 消滅アニメーション */
+        @keyframes capture-fade {
+            0% { transform: scale(1); opacity: 1; filter: brightness(1.5); }
+            50% { transform: scale(1.2); opacity: 0.8; filter: brightness(2) drop-shadow(0 0 8px gold); }
+            100% { transform: scale(0); opacity: 0; }
+        }
+
+        .stone-captured {
+            animation: capture-fade 0.4s forwards cubic-bezier(0.6, -0.28, 0.735, 0.045);
+        }
+
+        /* 最新着手地点マーカー */
+        .last-move-marker {
+            width: 30%;
+            height: 30%;
+            border-radius: 50%;
+            position: absolute;
+            top: 35%;
+            left: 35%;
+            pointer-events: none;
+        }
+        .stone-black .last-move-marker { background-color: #ef4444; }
+        .stone-white .last-move-marker { background-color: #2563eb; }
+
+        /* ホバープレビュー */
+        .grid-intersection:hover .stone-preview-black {
+            background-color: rgba(0, 0, 0, 0.4);
+            border: 2px dashed #000;
+        }
+        .grid-intersection:hover .stone-preview-white {
+            background-color: rgba(255, 255, 255, 0.6);
+            border: 2px dashed #fff;
+        }
+
+        /* カスタムスクロールバー */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #2a2421;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #57483e;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-2 md:p-6 select-none">
+
+    <!-- ヘッダー -->
+    <header class="text-center my-2">
+        <h1 class="title-font text-3xl md:text-5xl font-extrabold text-amber-200 tracking-wider flex items-center justify-center gap-3">
+            <i class="fa-solid font-normal text-amber-500 text-2xl md:text-4xl">☯</i> 囲碁五目並べ
+        </h1>
+        <p class="text-xs md:text-sm text-stone-400 mt-1">「5連で勝利」×「囲めば消える」新感覚ボードゲーム</p>
+    </header>
+
+    <!-- メインコンテンツ領域 -->
+    <main class="flex flex-col lg:flex-row items-center justify-center gap-6 my-auto w-full max-w-6xl">
+
+        <!-- 左側：ステータス＆コントロールパネル（大画面時） -->
+        <div class="flex flex-col gap-4 w-full lg:w-72 order-2 lg:order-1">
+            
+            <!-- 手番プレイヤーカード -->
+            <div class="bg-stone-800/90 border border-stone-700 rounded-xl p-4 shadow-lg text-center backdrop-blur-sm">
+                <span class="text-xs text-stone-400 uppercase tracking-widest block mb-2">現在のターン</span>
+                <div id="player-status" class="flex items-center justify-center gap-3 py-2 px-4 rounded-lg bg-stone-900/60 border border-stone-700/50">
+                    <div id="turn-stone-icon" class="w-8 h-8 rounded-full stone-black flex-shrink-0"></div>
+                    <span id="turn-player-text" class="title-font text-xl font-bold text-amber-100">黒番 (先手)</span>
+                </div>
+            </div>
+
+            <!-- アラート/メッセージ表示エリア -->
+            <div id="message-box" class="bg-stone-900/80 border border-amber-900/50 rounded-xl p-3 min-h-[60px] flex items-center justify-center text-center text-sm font-medium text-amber-200/90 transition-all">
+                マス目をクリックして石を配置してください。
+            </div>
+
+            <!-- 対戦記録・カウント -->
+            <div class="bg-stone-800/90 border border-stone-700 rounded-xl p-4 shadow-lg flex justify-around text-center">
+                <div>
+                    <div class="text-xs text-stone-400 mb-1">黒の捕獲数</div>
+                    <div id="black-captures" class="text-2xl font-bold text-amber-400">0 <span class="text-xs text-stone-400 font-normal">個</span></div>
+                </div>
+                <div class="w-px bg-stone-700"></div>
+                <div>
+                    <div class="text-xs text-stone-400 mb-1">白の捕獲数</div>
+                    <div id="white-captures" class="text-2xl font-bold text-amber-400">0 <span class="text-xs text-stone-400 font-normal">個</span></div>
+                </div>
+            </div>
+
+            <!-- アクションボタン類 -->
+            <div class="flex gap-2">
+                <button id="btn-pass" class="flex-1 bg-amber-800/60 hover:bg-amber-700/80 text-amber-100 border border-amber-600/40 py-2.5 px-4 rounded-lg font-bold text-sm transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-forward"></i> パス
+                </button>
+                <button id="btn-reset" class="flex-1 bg-stone-700 hover:bg-stone-600 text-stone-200 border border-stone-500/40 py-2.5 px-4 rounded-lg font-bold text-sm transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-rotate-right"></i> 盤面リセット
+                </button>
+            </div>
+
+            <!-- ルールクイックガイド -->
+            <div class="bg-stone-900/40 border border-stone-800 rounded-xl p-3.5 text-xs text-stone-400 leading-relaxed space-y-1">
+                <div class="font-bold text-amber-300/80 mb-1 border-b border-stone-800 pb-1"><i class="fa-solid fa-book-open"></i> 基本ルール</div>
+                <p>• 縦横斜めに<strong class="text-amber-200">5石以上</strong>連ねると即勝利。</p>
+                <p>• 相手の石群の呼吸点(隣接空マス)を全て塞ぐと<strong class="text-amber-200">消滅</strong>。</p>
+                <p>• 自身の呼吸点が0になる<strong class="text-amber-200">自殺手は禁止</strong>(相手を取れる場合除く)。</p>
+                <p>• 同一盤面が繰り返される<strong class="text-amber-200">千日手は禁止</strong>。</p>
+            </div>
+        </div>
+
+        <!-- 中央：碁盤 -->
+        <div class="goban-container relative p-3 md:p-6 order-1 lg:order-2">
+            <!-- 碁盤の描画キャンバス(グリッド & 石) -->
+            <div id="board" class="relative grid" style="grid-template-columns: repeat(15, minmax(0, 1fr));">
+                <!-- JavaScriptで15x15のセル（交差点）を動的に生成 -->
+            </div>
+        </div>
+
+    </main>
+
+    <!-- フッター -->
+    <footer class="my-4 text-center text-xs text-stone-500">
+        &copy; 2026 Go-Gomoku Game - HTML5 / Tailwind / JS Prototype
+    </footer>
+
+    <!-- 勝者モーダル（ポップアップ） -->
+    <div id="winner-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-stone-800 border-2 border-amber-500 rounded-2xl p-6 md:p-8 max-w-sm w-full mx-4 text-center shadow-2xl transform scale-95 transition-transform duration-300" id="winner-modal-content">
+            <div class="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center shadow-lg" id="winner-icon-bg">
+                <div id="winner-stone-icon" class="w-16 h-16 rounded-full"></div>
+            </div>
+            <h2 class="title-font text-3xl font-extrabold text-amber-300 mb-1" id="winner-title">決着！</h2>
+            <p class="text-lg font-bold text-stone-200 mb-6" id="winner-message">黒番の勝利です！</p>
+            <button id="btn-modal-restart" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 rounded-xl shadow-lg transition transform hover:-translate-y-0.5">
+                もう一度遊ぶ
+            </button>
+        </div>
+    </div>
+
+    <!-- ゲームロジックJavaScript -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const BOARD_SIZE = 15;
+            const EMPTY = 0;
+            const BLACK = 1;
+            const WHITE = 2;
+
+            // 星（盤上の黒点）の座標（15x15用）
+            const STAR_POINTS = [
+                {x: 3, y: 3}, {x: 11, y: 3}, {x: 7, y: 7},
+                {x: 3, y: 11}, {x: 11, y: 11}
+            ];
+
+            let boardState = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(EMPTY));
+            let currentPlayer = BLACK;
+            let lastMove = null;
+            let gameOver = false;
+            let captures = { [BLACK]: 0, [WHITE]: 0 };
+            
+            // 千日手判定用の局面履歴 (盤面文字列のSet)
+            let boardHistory = new Set();
+
+            // DOM要素
+            const boardEl = document.getElementById('board');
+            const turnPlayerText = document.getElementById('turn-player-text');
+            const turnStoneIcon = document.getElementById('turn-stone-icon');
+            const messageBox = document.getElementById('message-box');
+            const blackCapturesEl = document.getElementById('black-captures');
+            const whiteCapturesEl = document.getElementById('white-captures');
+            const btnPass = document.getElementById('btn-pass');
+            const btnReset = document.getElementById('btn-reset');
+            
+            // モーダル要素
+            const winnerModal = document.getElementById('winner-modal');
+            const winnerModalContent = document.getElementById('winner-modal-content');
+            const winnerStoneIcon = document.getElementById('winner-stone-icon');
+            const winnerTitle = document.getElementById('winner-title');
+            const winnerMessage = document.getElementById('winner-message');
+            const btnModalRestart = document.getElementById('btn-modal-restart');
+
+            // --- 盤面の初期化とレンダリング ---
+            function initBoardUI() {
+                boardEl.innerHTML = '';
+                
+                // 動的サイズ計算用（レスポンシブ）
+                const containerWidth = Math.min(window.innerWidth - 32, 580);
+                const cellSize = Math.floor(containerWidth / BOARD_SIZE);
+
+                boardEl.style.width = `${cellSize * BOARD_SIZE}px`;
+                boardEl.style.height = `${cellSize * BOARD_SIZE}px`;
+
+                for (let y = 0; y < BOARD_SIZE; y++) {
+                    for (let x = 0; x < BOARD_SIZE; x++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'grid-intersection relative flex items-center justify-center cursor-pointer';
+                        cell.style.width = `${cellSize}px`;
+                        cell.style.height = `${cellSize}px`;
+                        cell.dataset.x = x;
+                        cell.dataset.y = y;
+
+                        // 罫線（クロス）
+                        const lineH = document.createElement('div');
+                        lineH.className = 'absolute bg-stone-800/80 pointer-events-none';
+                        lineH.style.height = '1px';
+                        lineH.style.left = x === 0 ? '50%' : '0';
+                        lineH.style.right = x === BOARD_SIZE - 1 ? '50%' : '0';
+
+                        const lineV = document.createElement('div');
+                        lineV.className = 'absolute bg-stone-800/80 pointer-events-none';
+                        lineV.style.width = '1px';
+                        lineV.style.top = y === 0 ? '50%' : '0';
+                        lineV.style.bottom = y === BOARD_SIZE - 1 ? '50%' : '0';
+
+                        cell.appendChild(lineH);
+                        cell.appendChild(lineV);
+
+                        // 星（点）の描写
+                        if (STAR_POINTS.some(p => p.x === x && p.y === y)) {
+                            const star = document.createElement('div');
+                            star.className = 'absolute w-2 h-2 rounded-full bg-stone-900 pointer-events-none z-0';
+                            cell.appendChild(star);
+                        }
+
+                        // クリックイベント
+                        cell.addEventListener('click', () => handleCellClick(x, y));
+
+                        boardEl.appendChild(cell);
+                    }
+                }
+                
+                // 初期の盤面状態記録
+                saveBoardHistory();
+            }
+
+            // UI上の石を描画更新
+            function renderStones(capturedCoordinates = []) {
+                const cells = boardEl.children;
+                const cellSize = parseInt(cells[0].style.width);
+                const stoneSize = Math.floor(cellSize * 0.88);
+
+                for (let i = 0; i < cells.length; i++) {
+                    const cell = cells[i];
+                    const x = parseInt(cell.dataset.x);
+                    const y = parseInt(cell.dataset.y);
+                    const state = boardState[y][x];
+
+                    // 既存の石やプレビューの除去
+                    const existingStone = cell.querySelector('.stone');
+                    if (existingStone) {
+                        // アニメーション中の消去石の処理
+                        if (existingStone.classList.contains('stone-captured')) {
+                            // アニメーション完了待ち
+                        } else {
+                            existingStone.remove();
+                        }
+                    }
+
+                    const existingPreview = cell.querySelector('.stone-preview');
+                    if (existingPreview) existingPreview.remove();
+
+                    // 石が存在する場合
+                    if (state !== EMPTY) {
+                        // もし今消去された石であれば消滅アニメーション適用
+                        const isCaptured = capturedCoordinates.some(c => c.x === x && c.y === y);
+
+                        const stone = document.createElement('div');
+                        stone.className = `stone z-10 relative flex items-center justify-center ${state === BLACK ? 'stone-black' : 'stone-white'}`;
+                        if (isCaptured) {
+                            stone.classList.add('stone-captured');
+                        }
+                        stone.style.width = `${stoneSize}px`;
+                        stone.style.height = `${stoneSize}px`;
+
+                        // 最新の着手点マーカー
+                        if (lastMove && lastMove.x === x && lastMove.y === y && !isCaptured) {
+                            const marker = document.createElement('div');
+                            marker.className = 'last-move-marker';
+                            stone.appendChild(marker);
+                        }
+
+                        cell.appendChild(stone);
+                    } else if (!gameOver) {
+                        // ホバー時のプレビュー表示
+                        const preview = document.createElement('div');
+                        preview.className = `stone-preview z-10 rounded-full opacity-0 hover:opacity-100 transition-opacity ${currentPlayer === BLACK ? 'stone-preview-black' : 'stone-preview-white'}`;
+                        preview.style.width = `${stoneSize}px`;
+                        preview.style.height = `${stoneSize}px`;
+                        cell.appendChild(preview);
+                    }
+                }
+            }
+
+            // --- ゲームルール＆ロジック演算 ---
+
+            // 隣接座標の取得
+            function getNeighbors(x, y) {
+                const neighbors = [];
+                const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+                for (const [dx, dy] of dirs) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE) {
+                        neighbors.push({ x: nx, y: ny });
+                    }
+                }
+                return neighbors;
+            }
+
+            // 指定座標の石が属する連（グループ）を取得（BFS）
+            function getGroup(board, startX, startY) {
+                const color = board[startY][startX];
+                if (color === EMPTY) return { group: [], liberties: new Set() };
+
+                const group = [];
+                const liberties = new Set();
+                const visited = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(false));
+                const queue = [{ x: startX, y: startY }];
+                visited[startY][startX] = true;
+
+                while (queue.length > 0) {
+                    const { x, y } = queue.shift();
+                    group.push({ x, y });
+
+                    for (const neighbor of getNeighbors(x, y)) {
+                        const nColor = board[neighbor.y][neighbor.x];
+                        if (nColor === EMPTY) {
+                            liberties.add(`${neighbor.x},${neighbor.y}`);
+                        } else if (nColor === color && !visited[neighbor.y][neighbor.x]) {
+                            visited[neighbor.y][neighbor.x] = true;
+                            queue.push(neighbor);
+                        }
+                    }
+                }
+
+                return { group, liberties };
+            }
+
+            // 盤面状態の文字列化（千日手チェック用）
+            function getBoardKey(board) {
+                return board.map(row => row.join('')).join('');
+            }
+
+            function saveBoardHistory() {
+                boardHistory.add(getBoardKey(boardState));
+            }
+
+            // 5連完成の判定（勝利条件）
+            function checkFiveInARow(board, x, y, color) {
+                const directions = [
+                    [[1, 0], [-1, 0]],   // 横
+                    [[0, 1], [0, -1]],   // 縦
+                    [[1, 1], [-1, -1]],  // 斜め 右下-左上
+                    [[1, -1], [-1, 1]]   // 斜め 右上-左下
+                ];
+
+                for (const dPair of directions) {
+                    let count = 1;
+                    for (const [dx, dy] of dPair) {
+                        let nx = x + dx;
+                        let ny = y + dy;
+                        while (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE && board[ny][nx] === color) {
+                            count++;
+                            nx += dx;
+                            ny += dy;
+                        }
+                    }
+                    if (count >= 5) return true;
+                }
+                return false;
+            }
+
+            // --- 着手処理メイン機能 ---
+            function handleCellClick(x, y) {
+                if (gameOver) return;
+
+                // 既に石がある場所には打てない
+                if (boardState[y][x] !== EMPTY) {
+                    showMessage("既に石が配置されています。", "error");
+                    return;
+                }
+
+                const opponent = currentPlayer === BLACK ? WHITE : BLACK;
+
+                // 盤面の仮想シミュレーション用ディープコピー
+                let tempBoard = boardState.map(row => [...row]);
+                tempBoard[y][x] = currentPlayer;
+
+                // 1. 相手の石の捕獲判定
+                let capturedStones = [];
+                const neighbors = getNeighbors(x, y);
+                const checkedGroups = new Set();
+
+                for (const n of neighbors) {
+                    if (tempBoard[n.y][n.x] === opponent) {
+                        const key = `${n.x},${n.y}`;
+                        if (!checkedGroups.has(key)) {
+                            const { group, liberties } = getGroup(tempBoard, n.x, n.y);
+                            group.forEach(p => checkedGroups.add(`${p.x},${p.y}`));
+
+                            if (liberties.size === 0) {
+                                // 相手の石を取り除く
+                                capturedStones.push(...group);
+                            }
+                        }
+                    }
+                }
+
+                // 仮想盤面から捕獲された石を消去
+                capturedStones.forEach(p => {
+                    tempBoard[p.y][p.x] = EMPTY;
+                });
+
+                // 2. 自殺手判定（自分の呼吸点チェック）
+                const myGroupInfo = getGroup(tempBoard, x, y);
+                if (myGroupInfo.liberties.size === 0 && capturedStones.length === 0) {
+                    showMessage("【自殺手禁止】呼吸点（息の根）がない場所には置けません。", "error");
+                    return;
+                }
+
+                // 3. 千日手（同一局面の繰り返し）判定
+                const tempBoardKey = getBoardKey(tempBoard);
+                if (boardHistory.has(tempBoardKey)) {
+                    showMessage("【千日手禁止】過去と同じ盤面状態に戻る手は打てません。", "error");
+                    return;
+                }
+
+                // --- ここまで通過すれば有効手 ---
+
+                // 盤面更新
+                boardState = tempBoard;
+                lastMove = { x, y };
+
+                // 捕獲数の加算
+                if (capturedStones.length > 0) {
+                    captures[currentPlayer] += capturedStones.length;
+                    blackCapturesEl.innerText = captures[BLACK];
+                    whiteCapturesEl.innerText = captures[WHITE];
+                }
+
+                // UI更新
+                renderStones(capturedStones);
+                boardHistory.add(tempBoardKey);
+
+                // 4. 5連判定（勝利判定は捕獲より優先）
+                if (checkFiveInARow(boardState, x, y, currentPlayer)) {
+                    handleWin(currentPlayer);
+                    return;
+                }
+
+                // アクションログメッセージの決定
+                if (capturedStones.length > 0) {
+                    showMessage(`${currentPlayer === BLACK ? '黒' : '白'}が ${capturedStones.length} 個の石を囲んで消しました！`, "success");
+                } else {
+                    showMessage(`${currentPlayer === BLACK ? '黒' : '白'}が (${x+1}, ${y+1}) に着手しました。`, "info");
+                }
+
+                // 手番交代
+                switchTurn();
+            }
+
+            // 手番交代
+            function switchTurn() {
+                currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
+                if (currentPlayer === BLACK) {
+                    turnPlayerText.innerText = "黒番 (先手)";
+                    turnStoneIcon.className = "w-8 h-8 rounded-full stone-black flex-shrink-0";
+                } else {
+                    turnPlayerText.innerText = "白番 (後手)";
+                    turnStoneIcon.className = "w-8 h-8 rounded-full stone-white flex-shrink-0";
+                }
+                renderStones();
+            }
+
+            // 勝利時処理
+            function handleWin(winner) {
+                gameOver = true;
+                const winnerName = winner === BLACK ? "黒" : "白";
+
+                // モーダル表示
+                winnerTitle.innerText = "勝利！";
+                winnerMessage.innerText = `${winnerName}番のプレイヤーが5連を達成しました！`;
+                winnerStoneIcon.className = `w-16 h-16 rounded-full ${winner === BLACK ? 'stone-black' : 'stone-white'}`;
+                
+                winnerModal.classList.remove('opacity-0', 'pointer-events-none');
+                winnerModalContent.classList.remove('scale-95');
+                winnerModalContent.classList.add('scale-100');
+
+                showMessage(`ゲーム終了！${winnerName}の勝利です！`, "success");
+            }
+
+            // メッセージ表示ヘルパー
+            function showMessage(msg, type = "info") {
+                messageBox.innerText = msg;
+                messageBox.className = "bg-stone-900/80 border rounded-xl p-3 min-h-[60px] flex items-center justify-center text-center text-sm font-medium transition-all duration-200 ";
+
+                if (type === "error") {
+                    messageBox.classList.add("border-red-500/80", "text-red-300", "bg-red-950/30");
+                } else if (type === "success") {
+                    messageBox.classList.add("border-emerald-500/80", "text-emerald-300", "bg-emerald-950/30");
+                } else {
+                    messageBox.classList.add("border-amber-900/50", "text-amber-200/90");
+                }
+            }
+
+            // リセット処理
+            function resetGame() {
+                boardState = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(EMPTY));
+                currentPlayer = BLACK;
+                lastMove = null;
+                gameOver = false;
+                captures = { [BLACK]: 0, [WHITE]: 0 };
+                boardHistory.clear();
+
+                blackCapturesEl.innerText = '0';
+                whiteCapturesEl.innerText = '0';
+                
+                turnPlayerText.innerText = "黒番 (先手)";
+                turnStoneIcon.className = "w-8 h-8 rounded-full stone-black flex-shrink-0";
+
+                winnerModal.classList.add('opacity-0', 'pointer-events-none');
+                winnerModalContent.classList.remove('scale-100');
+                winnerModalContent.classList.add('scale-95');
+
+                initBoardUI();
+                renderStones();
+                saveBoardHistory();
+                showMessage("ゲームをリセットしました。黒番からスタートです。");
+            }
+
+            // --- イベントリスナー ---
+            
+            // パスボタン
+            btnPass.addEventListener('click', () => {
+                if (gameOver) return;
+                const passPlayer = currentPlayer === BLACK ? "黒" : "白";
+                showMessage(`${passPlayer}が手番をパスしました。`, "info");
+                switchTurn();
+            });
+
+            // リセットボタン
+            btnReset.addEventListener('click', () => {
+                resetGame();
+            });
+
+            btnModalRestart.addEventListener('click', () => {
+                resetGame();
+            });
+
+            // ウインドウサイズ変更時の碁盤レスポンシブ再描画
+            window.addEventListener('resize', () => {
+                const cells = boardEl.children;
+                if (cells.length === 0) return;
+
+                const containerWidth = Math.min(window.innerWidth - 32, 580);
+                const cellSize = Math.floor(containerWidth / BOARD_SIZE);
+
+                boardEl.style.width = `${cellSize * BOARD_SIZE}px`;
+                boardEl.style.height = `${cellSize * BOARD_SIZE}px`;
+
+                for (let cell of cells) {
+                    cell.style.width = `${cellSize}px`;
+                    cell.style.height = `${cellSize}px`;
+                }
+                renderStones();
+            });
+
+            // 初回起動
+            initBoardUI();
+            renderStones();
+        });
+    </script>
+</body>
+</html>

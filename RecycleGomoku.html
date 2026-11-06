@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recycle Gomoku (リサイクル・ゴモク)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            user-select: none;
+        }
+        /* Custom scrollbar for history panel */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(30, 41, 59, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        /* Board textures & styling */
+        .board-grid {
+            background-color: #e5a95d;
+            background-image: radial-gradient(#d99343 1px, transparent 0);
+            background-size: 24px 24px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.3), 0 10px 25px -5px rgba(0,0,0,0.5);
+        }
+        .board-interactive-layer {
+            display: grid;
+            grid-template-columns: repeat(15, minmax(0, 1fr));
+            grid-template-rows: repeat(15, minmax(0, 1fr));
+        }
+        .stone-black {
+            background: radial-gradient(circle at 35% 35%, #4b5563, #111827 70%);
+            box-shadow: 2px 3px 6px rgba(0,0,0,0.4), inset -1px -1px 2px rgba(255,255,255,0.2);
+        }
+        .stone-white {
+            background: radial-gradient(circle at 35% 35%, #ffffff, #d1d5db 70%);
+            box-shadow: 2px 3px 6px rgba(0,0,0,0.4), inset -1px -1px 2px rgba(0,0,0,0.1);
+        }
+        .stone-ghost {
+            opacity: 0.5;
+            transform: scale(0.9);
+        }
+        .stone-selected {
+            animation: pulse-ring 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse-ring {
+            0%, 100% { transform: scale(1); ring-width: 4px; }
+            50% { transform: scale(1.08); }
+        }
+        .last-move-indicator {
+            animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+        @keyframes ping {
+            75%, 100% { transform: scale(2); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between overflow-x-hidden">
+
+    <!-- Header Navigation -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-slate-950 font-bold text-xl shadow-lg">
+                    五
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-wide text-white leading-tight">リサイクル・ゴモク</h1>
+                    <p class="text-xs text-slate-400">Recycle Gomoku (15×15 / 石数変更可)</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button id="btn-rules" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 transition flex items-center gap-1.5 border border-slate-700">
+                    <i class="fa-solid fa-circle-question text-amber-400"></i>
+                    <span>ルール説明</span>
+                </button>
+                <button id="btn-restart" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-xs font-semibold text-white transition flex items-center gap-1.5 shadow">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span>リセット</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left / Top Controls & Status Panel -->
+        <div class="lg:col-span-4 flex flex-col gap-4 order-2 lg:order-1">
+            
+            <!-- Game Mode & Settings -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">対局設定</h2>
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <button id="mode-p2p" class="py-2 px-3 rounded-xl border border-amber-500/50 bg-amber-500/10 text-amber-300 font-medium text-xs flex items-center justify-center gap-2 transition">
+                        <i class="fa-solid fa-users"></i>
+                        <span>二人で遊ぶ</span>
+                    </button>
+                    <button id="mode-ai" class="py-2 px-3 rounded-xl border border-slate-700 bg-slate-800 text-slate-400 font-medium text-xs flex items-center justify-center gap-2 hover:border-slate-600 transition">
+                        <i class="fa-solid fa-robot"></i>
+                        <span>VS AI (後手)</span>
+                    </button>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800">
+                    <span>思考時間制限 (タイマー)</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="timer-toggle" class="sr-only peer">
+                        <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600"></div>
+                    </label>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-400 mt-3 pt-3 border-t border-slate-800">
+                    <label for="stone-limit" class="font-medium">各プレイヤーの石の上限</label>
+                    <div class="flex items-center gap-2">
+                        <input id="stone-limit" type="number" min="5" max="30" step="1" value="15" class="w-16 rounded-lg bg-slate-800 border border-slate-700 px-2 py-1 text-center text-white">
+                        <span>個</span>
+                    </div>
+                </div>
+                <p class="text-[10px] text-slate-500 mt-1">5〜30個。変更すると対局をリセットします。</p>
+            </div>
+
+            <!-- Current Phase & Turn Indicator -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                <div id="phase-badge" class="absolute top-4 right-4 text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                    配置フェーズ
+                </div>
+
+                <div class="text-xs text-slate-400 font-medium mb-1">現在のターン</div>
+                <div id="turn-display" class="flex items-center gap-3 my-2">
+                    <div id="turn-stone" class="w-8 h-8 rounded-full stone-black shadow-lg flex-shrink-0"></div>
+                    <div>
+                        <div id="turn-text" class="text-lg font-bold text-white">黒番 (先手)</div>
+                        <div id="turn-action-hint" class="text-xs text-amber-400 font-medium">空きマスをクリックして石を配置してください</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 mt-4">
+                    <button id="action-place" class="py-2 px-3 rounded-xl border text-xs font-bold transition" type="button">石を新しく置く</button>
+                    <button id="action-move" class="py-2 px-3 rounded-xl border text-xs font-bold transition" type="button">石を移動する</button>
+                </div>
+
+                <!-- Timer Bar -->
+                <div id="timer-container" class="hidden mt-3 pt-3 border-t border-slate-800">
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-slate-400">残り時間</span>
+                        <span id="timer-text" class="font-mono text-amber-400 font-bold">15s</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div id="timer-bar" class="bg-amber-500 h-full w-full transition-all duration-1000 ease-linear"></div>
+                    </div>
+                </div>
+
+                <!-- Player Inventories / Stone Count -->
+                <div class="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-800">
+                    <!-- Black Inventory -->
+                    <div id="player-black-card" class="bg-slate-800/80 rounded-xl p-3 border-2 border-amber-500/80 transition-all">
+                        <div class="flex items-center gap-2 mb-1">
+                            <div class="w-4 h-4 rounded-full stone-black"></div>
+                            <span class="text-xs font-bold text-slate-200">黒 (Player 1)</span>
+                        </div>
+                        <div class="flex justify-between items-end mt-2">
+                            <span class="text-[10px] text-slate-400">盤上: <span id="black-on-board" class="font-bold text-slate-200">0</span>/<span id="black-stone-limit">15</span></span>
+                            <span class="text-xs font-bold text-amber-400"><span id="black-remaining">15</span> 個未配置</span>
+                        </div>
+                    </div>
+
+                    <!-- White Inventory -->
+                    <div id="player-white-card" class="bg-slate-800/30 rounded-xl p-3 border-2 border-transparent transition-all">
+                        <div class="flex items-center gap-2 mb-1">
+                            <div class="w-4 h-4 rounded-full stone-white"></div>
+                            <span class="text-xs font-bold text-slate-200">白 (Player 2)</span>
+                        </div>
+                        <div class="flex justify-between items-end mt-2">
+                            <span class="text-[10px] text-slate-400">盤上: <span id="white-on-board" class="font-bold text-slate-200">0</span>/<span id="white-stone-limit">15</span></span>
+                            <span class="text-xs font-bold text-slate-400"><span id="white-remaining">15</span> 個未配置</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons & History Log -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col gap-3">
+                <div class="flex gap-2">
+                    <button id="btn-undo" class="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        <span>待った (1手戻す)</span>
+                    </button>
+                    <button id="btn-pass" class="py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+                        <i class="fa-solid fa-forward"></i>
+                        <span>パス</span>
+                    </button>
+                </div>
+
+                <div class="border-t border-slate-800 pt-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">棋譜・対局履歴</span>
+                        <span id="move-count" class="text-[11px] font-mono text-slate-500">0 手目</span>
+                    </div>
+                    <div id="history-list" class="h-32 overflow-y-auto space-y-1 pr-1 text-xs font-mono">
+                        <div class="text-slate-500 italic text-center py-4">対局を開始してください</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right / Main Game Board -->
+        <div class="lg:col-span-8 flex flex-col items-center order-1 lg:order-2">
+            <div class="relative max-w-full p-2 sm:p-4 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl">
+                <!-- Board Wrapper for proper scaling -->
+                <div id="board-container" class="relative board-grid rounded-xl cursor-pointer select-none overflow-hidden touch-none" style="width: min(85vw, 560px); height: min(85vw, 560px);">
+                    <!-- Board grid will be dynamically generated or rendered on canvas -->
+                    <canvas id="board-canvas" class="absolute inset-0 w-full h-full z-10"></canvas>
+                    <div id="interactive-layer" class="board-interactive-layer absolute inset-0 z-20"></div>
+                </div>
+
+                <!-- Info message bar below board -->
+                <div id="status-message" class="mt-3 py-2 px-4 bg-slate-800/80 rounded-xl border border-slate-700/50 text-xs text-slate-300 text-center flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-circle-info text-amber-400"></i>
+                    <span id="status-message-text">手番ごとに石を置くか移動するか選んでください。</span>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Modal: Rules -->
+    <div id="modal-rules" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-book-open text-amber-400"></i>
+                    リサイクル・ゴモクのルール
+                </h3>
+                <button id="close-rules" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4 my-4 text-xs sm:text-sm text-slate-300 leading-relaxed">
+                <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
+                    <h4 class="font-bold text-amber-300 mb-1">【勝利条件】</h4>
+                    <p>自分の色の石を縦・横・斜めのいずれかに<b>連続5個以上</b>並べたプレイヤーの勝利となります。</p>
+                </div>
+
+                <div>
+                    <h4 class="font-bold text-white mb-1">1. 手番ごとの選択</h4>
+                    <p>各手番で「石を新しく置く」か「自分の石を移動する」のどちらかを選びます。新しく置けるのは各プレイヤーの上限数までです。</p>
+                </div>
+
+                <div>
+                    <h4 class="font-bold text-white mb-1">2. 石の移動</h4>
+                    <p>移動を選んだら、自分の石を1つ選び、別の空いているマスへ移動します。移動しても石の数は変わりません。</p>
+                </div>
+
+                <div class="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl">
+                    <h4 class="font-bold text-amber-400 mb-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i>移動時の重要制限</h4>
+                    <ul class="list-disc list-inside space-y-1 text-xs">
+                        <li><b>元の位置への即時打ち戻し禁止:</b> その手番で外した元のマスへそのまま置き直すことはできません。</li>
+                        <li><b>コウルール（同型反復禁止）:</b> 過去に出現した盤面全体と完全に同じ状態に戻す移動は禁手（無効）となります。</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 flex justify-end">
+                <button id="btn-understand" class="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs transition">
+                    理解しました
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Victory / Game Over -->
+    <div id="modal-victory" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-amber-500/40 rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl relative overflow-hidden">
+            <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center mx-auto mb-4 text-slate-950 text-2xl font-black shadow-lg">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+            
+            <h3 id="victory-title" class="text-2xl font-black text-white mb-1">勝利！</h3>
+            <p id="victory-subtitle" class="text-xs text-amber-400 font-medium mb-4">黒番が5連を達成しました</p>
+
+            <div class="bg-slate-800/60 rounded-xl p-3 mb-6 border border-slate-700/50 text-xs text-slate-300 space-y-1">
+                <div class="flex justify-between">
+                    <span class="text-slate-400">総手数</span>
+                    <span id="final-moves" class="font-bold font-mono text-white">32 手</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">決着フェーズ</span>
+                    <span id="final-phase" class="font-bold text-amber-300">移動フェーズ</span>
+                </div>
+            </div>
+
+            <button id="btn-modal-restart" class="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-sm shadow-lg transition">
+                もう一度対局する
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-900 bg-slate-950 py-3 text-center text-xs text-slate-600">
+        Recycle Gomoku — 15x15 Dynamic Strategic Board Game
+    </footer>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // Board Constants
+        const BOARD_SIZE = 15;
+        const MIN_STONES = 5;
+        const MAX_STONES_LIMIT = 30;
+        let maxStones = 15;
+        const EMPTY = 0;
+        const BLACK = 1;
+        const WHITE = 2;
+
+        // Game State Variables
+        let board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(EMPTY));
+        let currentPlayer = BLACK;
+        let gameMode = 'P2P'; // 'P2P' or 'AI'
+        let turnAction = 'PLACE'; // Player chooses PLACE or MOVE each turn
+        let blackPlacedCount = 0;
+        let whitePlacedCount = 0;
+        let isGameOver = false;
+
+        // Selection state for MOVE phase
+        let selectedStone = null; // {r, c}
+
+        // History and State tracking for Ko Rule
+        let moveHistory = []; // Array of move objects
+        let boardStateHistory = new Set(); // Serialized board states
+
+        // Timer
+        let timerEnabled = false;
+        let timerInterval = null;
+        let timeLeft = 15;
+
+        // DOM Elements
+        const canvas = document.getElementById('board-canvas');
+        const ctx = canvas.getContext('2d');
+        const interactiveLayer = document.getElementById('interactive-layer');
+        const turnText = document.getElementById('turn-text');
+        const turnStone = document.getElementById('turn-stone');
+        const turnActionHint = document.getElementById('turn-action-hint');
+        const phaseBadge = document.getElementById('phase-badge');
+        const actionPlaceButton = document.getElementById('action-place');
+        const actionMoveButton = document.getElementById('action-move');
+        const statusMessageText = document.getElementById('status-message-text');
+        
+        const blackOnBoardEl = document.getElementById('black-on-board');
+        const whiteOnBoardEl = document.getElementById('white-on-board');
+        const blackRemainingEl = document.getElementById('black-remaining');
+        const whiteRemainingEl = document.getElementById('white-remaining');
+        
+        const playerBlackCard = document.getElementById('player-black-card');
+        const playerWhiteCard = document.getElementById('player-white-card');
+        const historyList = document.getElementById('history-list');
+        const moveCountEl = document.getElementById('move-count');
+
+        const btnUndo = document.getElementById('btn-undo');
+        const btnPass = document.getElementById('btn-pass');
+        const btnRestart = document.getElementById('btn-restart');
+        const btnRules = document.getElementById('btn-rules');
+        const closeRules = document.getElementById('close-rules');
+        const btnUnderstand = document.getElementById('btn-understand');
+        const modalRules = document.getElementById('modal-rules');
+        const modalVictory = document.getElementById('modal-victory');
+        const btnModalRestart = document.getElementById('btn-modal-restart');
+
+        const modeP2P = document.getElementById('mode-p2p');
+        const modeAI = document.getElementById('mode-ai');
+        const timerToggle = document.getElementById('timer-toggle');
+        const stoneLimitInput = document.getElementById('stone-limit');
+        const timerContainer = document.getElementById('timer-container');
+        const timerText = document.getElementById('timer-text');
+        const timerBar = document.getElementById('timer-bar');
+
+        // Initialization
+        window.addEventListener('load', () => {
+            setupCanvas();
+            initBoardGrid();
+            resetGame();
+            window.addEventListener('resize', () => {
+                setupCanvas();
+                renderBoard();
+            });
+        });
+
+        function setupCanvas() {
+            const container = document.getElementById('board-container');
+            const rect = container.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+
+        // Initialize Interactive Layer Cells
+        function initBoardGrid() {
+            interactiveLayer.innerHTML = '';
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'relative flex items-center justify-center cursor-pointer';
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+                    cell.addEventListener('click', () => handleCellClick(r, c));
+                    interactiveLayer.appendChild(cell);
+                }
+            }
+        }
+
+        // Render Canvas Grid and Stones
+        function renderBoard() {
+            const width = canvas.width / window.devicePixelRatio;
+            const height = canvas.height / window.devicePixelRatio;
+            const cellSize = width / BOARD_SIZE;
+
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw Grid Lines
+            ctx.strokeStyle = '#7c4a21';
+            ctx.lineWidth = 1;
+
+            for (let i = 0; i < BOARD_SIZE; i++) {
+                // Horizontal
+                ctx.beginPath();
+                ctx.moveTo(cellSize / 2, cellSize / 2 + i * cellSize);
+                ctx.lineTo(width - cellSize / 2, cellSize / 2 + i * cellSize);
+                ctx.stroke();
+
+                // Vertical
+                ctx.beginPath();
+                ctx.moveTo(cellSize / 2 + i * cellSize, cellSize / 2);
+                ctx.lineTo(cellSize / 2 + i * cellSize, height - cellSize / 2);
+                ctx.stroke();
+            }
+
+            // Draw Hoshi (Star Points) at standard 15x15 positions (3, 7, 11)
+            const starPoints = [3, 7, 11];
+            ctx.fillStyle = '#5c3310';
+            starPoints.forEach(r => {
+                starPoints.forEach(c => {
+                    ctx.beginPath();
+                    ctx.arc(cellSize / 2 + c * cellSize, cellSize / 2 + r * cellSize, 3.5, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            });
+
+            // Update DOM Overlay for Stones
+            const cells = interactiveLayer.children;
+            let lastMove = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null;
+
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const idx = r * BOARD_SIZE + c;
+                    const cell = cells[idx];
+                    cell.innerHTML = '';
+
+                    const val = board[r][c];
+                    if (val !== EMPTY) {
+                        const stone = document.createElement('div');
+                        stone.className = `w-[82%] h-[82%] rounded-full ${val === BLACK ? 'stone-black' : 'stone-white'} transition-transform duration-200`;
+
+                        // Highlight selected stone in MOVE phase
+                        if (selectedStone && selectedStone.r === r && selectedStone.c === c) {
+                            stone.classList.add('stone-selected', 'ring-4', 'ring-amber-400');
+                        }
+
+                        // Last placed/moved stone indicator
+                        if (lastMove && lastMove.toR === r && lastMove.toC === c) {
+                            const indicator = document.createElement('div');
+                            indicator.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 shadow-md border border-amber-200';
+                            stone.appendChild(indicator);
+                            stone.classList.add('flex', 'items-center', 'justify-center');
+                        }
+
+                        cell.appendChild(stone);
+                    }
+                }
+            }
+        }
+
+        function getPlacedCount(player) {
+            return player === BLACK ? blackPlacedCount : whitePlacedCount;
+        }
+
+        function chooseTurnAction(action) {
+            if (isGameOver) return;
+            if (action === 'PLACE' && getPlacedCount(currentPlayer) >= maxStones) {
+                setStatusMessage('石の上限に達しているため、新しい石は置けません。', 'warning');
+                return;
+            }
+            if (action === 'MOVE' && getPlacedCount(currentPlayer) === 0) {
+                setStatusMessage('移動できる自分の石がありません。', 'warning');
+                return;
+            }
+            turnAction = action;
+            selectedStone = null;
+            updateUI();
+            renderBoard();
+        }
+
+        // Handle Click Logic
+        function handleCellClick(r, c) {
+            if (isGameOver) return;
+            if (gameMode === 'AI' && currentPlayer === WHITE) return;
+
+            if (turnAction === 'PLACE') {
+                handlePlacement(r, c);
+            } else {
+                handleMovePhase(r, c);
+            }
+        }
+
+        // Phase 1: Stone Placement Logic
+        function handlePlacement(r, c) {
+            if (getPlacedCount(currentPlayer) >= maxStones) {
+                setStatusMessage('石の上限に達しています。移動を選んでください。', 'warning');
+                return;
+            }
+            if (board[r][c] !== EMPTY) {
+                setStatusMessage('空いているマスを選択してください。', 'warning');
+                return;
+            }
+
+            // Execute placement
+            board[r][c] = currentPlayer;
+            if (currentPlayer === BLACK) blackPlacedCount++;
+            else whitePlacedCount++;
+
+            recordMove({
+                type: 'PLACE',
+                player: currentPlayer,
+                toR: r,
+                toC: c
+            });
+
+            // Check Win
+            if (checkWin(r, c, currentPlayer)) {
+                endGame(currentPlayer);
+                return;
+            }
+
+            switchTurn();
+        }
+
+        // Phase 2: Recycle / Move Logic
+        function handleMovePhase(r, c) {
+            const cellVal = board[r][c];
+
+            // Step 1: Selecting stone to pick up
+            if (!selectedStone) {
+                if (cellVal === EMPTY) {
+                    setStatusMessage('移動させる自分の石をクリックして選択してください。', 'info');
+                    return;
+                }
+                if (cellVal !== currentPlayer) {
+                    setStatusMessage('自分の色の石を選択してください。', 'warning');
+                    return;
+                }
+
+                // Select this stone
+                selectedStone = { r, c };
+                setStatusMessage(`(${r + 1}, ${c + 1}) の石を選択しました。移動先の空きマスをクリックしてください。`, 'success');
+                renderBoard();
+                return;
+            }
+
+            // Step 2: Unselecting same stone
+            if (selectedStone.r === r && selectedStone.c === c) {
+                selectedStone = null;
+                setStatusMessage('石の選択を解除しました。移動させる石を選んでください。', 'info');
+                renderBoard();
+                return;
+            }
+
+            // Step 3: Selecting another friendly stone instead
+            if (cellVal === currentPlayer) {
+                selectedStone = { r, c };
+                setStatusMessage(`選択を (${r + 1}, ${c + 1}) の石に変更しました。移動先をクリックしてください。`, 'info');
+                renderBoard();
+                return;
+            }
+
+            // Step 4: Trying to place in an occupied spot
+            if (cellVal !== EMPTY) {
+                setStatusMessage('移動先は空いているマスである必要があります。', 'warning');
+                return;
+            }
+
+            // Step 5: Check Rule Restrictions
+            // Restriction 1: Cannot move back into same spot immediately
+            if (selectedStone.r === r && selectedStone.c === c) {
+                setStatusMessage('直前まで配置していた元の位置には戻せません。', 'warning');
+                return;
+            }
+
+            // Restriction 2: Ko Rule (Check board state repetition)
+            const fromR = selectedStone.r;
+            const fromC = selectedStone.c;
+
+            // Simulate move
+            board[fromR][fromC] = EMPTY;
+            board[r][c] = currentPlayer;
+            const nextSerializedState = serializeBoard();
+
+            if (boardStateHistory.has(nextSerializedState)) {
+                // Revert simulation
+                board[fromR][fromC] = currentPlayer;
+                board[r][c] = EMPTY;
+                setStatusMessage('コウルール違反：過去と同じ盤面配置に戻す移動は禁手です！', 'error');
+                return;
+            }
+
+            // Valid Move Executed
+            recordMove({
+                type: 'MOVE',
+                player: currentPlayer,
+                fromR: fromR,
+                fromC: fromC,
+                toR: r,
+                toC: c
+            });
+
+            selectedStone = null;
+
+            // Check Win
+            if (checkWin(r, c, currentPlayer)) {
+                endGame(currentPlayer);
+                return;
+            }
+
+            switchTurn();
+        }
+
+        // Switch Current Turn
+        function switchTurn() {
+            currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
+            selectedStone = null;
+            turnAction = getPlacedCount(currentPlayer) < maxStones ? 'PLACE' : 'MOVE';
+
+            updateUI();
+            renderBoard();
+            resetTimer();
+
+            // The AI places stones until it reaches its limit, then moves them.
+            if (!isGameOver && gameMode === 'AI' && currentPlayer === WHITE) {
+                setTimeout(makeAIMove, 400);
+            }
+        }
+        // Record Move & Board History
+        function recordMove(move) {
+            moveHistory.push(move);
+            boardStateHistory.add(serializeBoard());
+        }
+
+        // Serialize board for Ko Rule checking
+        function serializeBoard() {
+            return board.map(row => row.join('')).join('');
+        }
+
+        // Check 5-in-a-row Win Condition
+        function checkWin(r, c, player) {
+            const directions = [
+                [[0, 1], [0, -1]],   // Horizontal
+                [[1, 0], [-1, 0]],   // Vertical
+                [[1, 1], [-1, -1]],  // Diagonal \
+                [[1, -1], [-1, 1]]   // Diagonal /
+            ];
+
+            for (let d = 0; d < directions.length; d++) {
+                let count = 1;
+
+                for (let i = 0; i < 2; i++) {
+                    const [dr, dc] = directions[d][i];
+                    let nr = r + dr;
+                    let nc = c + dc;
+
+                    while (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) {
+                        count++;
+                        nr += dr;
+                        nc += dc;
+                    }
+                }
+
+                if (count >= 5) return true;
+            }
+            return false;
+        }
+
+        // AI Logic (Simple Heuristic)
+        function makeAIMove() {
+            if (isGameOver) return;
+
+            if (turnAction === 'PLACE') {
+                // Find best empty cell
+                let bestMove = findBestPlacementCell(WHITE);
+                if (bestMove) {
+                    handlePlacement(bestMove.r, bestMove.c);
+                }
+            } else {
+                // MOVE Phase AI
+                let bestMove = findBestRecycleMove(WHITE);
+                if (bestMove) {
+                    selectedStone = { r: bestMove.fromR, c: bestMove.fromC };
+                    handleMovePhase(bestMove.toR, bestMove.toC);
+                } else {
+                    // Pass if no legal moves
+                    passTurn();
+                }
+            }
+        }
+
+        // Find Best Placement Cell for AI
+        function findBestPlacementCell(player) {
+            let candidates = [];
+            let opponent = player === BLACK ? WHITE : BLACK;
+
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if (board[r][c] === EMPTY) {
+                        // Check if winning move
+                        board[r][c] = player;
+                        if (checkWin(r, c, player)) {
+                            board[r][c] = EMPTY;
+                            return { r, c };
+                        }
+                        // Check if block opponent winning move
+                        board[r][c] = opponent;
+                        if (checkWin(r, c, opponent)) {
+                            board[r][c] = EMPTY;
+                            return { r, c };
+                        }
+                        board[r][c] = EMPTY;
+
+                        // Score position based on proximity to center & neighboring stones
+                        let score = (7 - Math.abs(7 - r)) + (7 - Math.abs(7 - c));
+                        for (let dr = -2; dr <= 2; dr++) {
+                            for (let dc = -2; dc <= 2; dc++) {
+                                let nr = r + dr, nc = c + dc;
+                                if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] !== EMPTY) {
+                                    score += 3;
+                                }
+                            }
+                        }
+                        candidates.push({ r, c, score });
+                    }
+                }
+            }
+
+            candidates.sort((a, b) => b.score - a.score);
+            return candidates.length > 0 ? candidates[0] : { r: 7, c: 7 };
+        }
+
+        // Find Best Recycle Move for AI
+        function findBestRecycleMove(player) {
+            let myStones = [];
+            let emptyCells = [];
+
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if (board[r][c] === player) myStones.push({ r, c });
+                    if (board[r][c] === EMPTY) emptyCells.push({ r, c });
+                }
+            }
+
+            // Score possible (from, to) combinations
+            let moves = [];
+            for (let stone of myStones) {
+                // Temporarily lift stone
+                board[stone.r][stone.c] = EMPTY;
+
+                for (let target of emptyCells) {
+                    if (stone.r === target.r && stone.c === target.c) continue;
+
+                    board[target.r][target.c] = player;
+                    const serialized = serializeBoard();
+
+                    if (!boardStateHistory.has(serialized)) {
+                        let isWin = checkWin(target.r, target.c, player);
+                        let score = isWin ? 10000 : Math.random() * 10;
+
+                        moves.push({
+                            fromR: stone.r,
+                            fromC: stone.c,
+                            toR: target.r,
+                            toC: target.c,
+                            score: score
+                        });
+                    }
+                    board[target.r][target.c] = EMPTY;
+                }
+
+                board[stone.r][stone.c] = player; // Restore
+            }
+
+            moves.sort((a, b) => b.score - a.score);
+            return moves.length > 0 ? moves[0] : null;
+        }
+
+        // Undo Last Move
+        function undoMove() {
+            if (moveHistory.length === 0 || isGameOver) return;
+
+            // Undo 2 moves if against AI and it's player's turn
+            let stepsToUndo = (gameMode === 'AI' && currentPlayer === BLACK && moveHistory.length >= 2) ? 2 : 1;
+
+            for (let i = 0; i < stepsToUndo; i++) {
+                if (moveHistory.length === 0) break;
+                let last = moveHistory.pop();
+
+                if (last.type === 'PLACE') {
+                    board[last.toR][last.toC] = EMPTY;
+                    if (last.player === BLACK) blackPlacedCount--;
+                    else whitePlacedCount--;
+                } else if (last.type === 'MOVE') {
+                    board[last.toR][last.toC] = EMPTY;
+                    board[last.fromR][last.fromC] = last.player;
+                }
+
+                currentPlayer = last.player;
+            }
+
+            // Recalculate phase
+            turnAction = getPlacedCount(currentPlayer) < maxStones ? 'PLACE' : 'MOVE';
+            selectedStone = null;
+            isGameOver = false;
+
+            // Rebuild history set
+            rebuildStateHistory();
+
+            updateUI();
+            renderBoard();
+            resetTimer();
+            setStatusMessage('1手やり直しました。', 'info');
+        }
+
+        function passTurn() {
+            if (isGameOver) return;
+            recordMove({ type: 'PASS', player: currentPlayer });
+            switchTurn();
+            setStatusMessage('手番をパスしました。', 'info');
+        }
+
+        function rebuildStateHistory() {
+            boardStateHistory.clear();
+            // Re-run simulation to rebuild history
+            let tempBoard = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(EMPTY));
+            moveHistory.forEach(m => {
+                if (m.type === 'PLACE') tempBoard[m.toR][m.toC] = m.player;
+                if (m.type === 'MOVE') {
+                    tempBoard[m.fromR][m.fromC] = EMPTY;
+                    tempBoard[m.toR][m.toC] = m.player;
+                }
+                boardStateHistory.add(tempBoard.map(row => row.join('')).join(''));
+            });
+        }
+
+        // UI Updates
+        function updateUI() {
+            // Player Turn Card Styles
+            if (currentPlayer === BLACK) {
+                turnStone.className = 'w-8 h-8 rounded-full stone-black shadow-lg flex-shrink-0';
+                turnText.textContent = '黒番 (先手)';
+                playerBlackCard.className = 'bg-slate-800/80 rounded-xl p-3 border-2 border-amber-500 shadow-md transition-all';
+                playerWhiteCard.className = 'bg-slate-800/30 rounded-xl p-3 border-2 border-transparent transition-all';
+            } else {
+                turnStone.className = 'w-8 h-8 rounded-full stone-white shadow-lg flex-shrink-0';
+                turnText.textContent = gameMode === 'AI' ? '白番 (AI思考中...)' : '白番 (後手)';
+                playerWhiteCard.className = 'bg-slate-800/80 rounded-xl p-3 border-2 border-amber-500 shadow-md transition-all';
+                playerBlackCard.className = 'bg-slate-800/30 rounded-xl p-3 border-2 border-transparent transition-all';
+            }
+
+            // Show the action selected for this turn.
+            const canPlace = getPlacedCount(currentPlayer) < maxStones;
+            const canMove = getPlacedCount(currentPlayer) > 0;
+            phaseBadge.textContent = turnAction === 'PLACE' ? '石を置く手番' : '石を移動する手番';
+            phaseBadge.className = turnAction === 'PLACE'
+                ? 'absolute top-4 right-4 text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                : 'absolute top-4 right-4 text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30';
+            turnActionHint.textContent = turnAction === 'PLACE'
+                ? '空きマスをクリックして石を置いてください'
+                : '自分の石を選んで移動先をクリックしてください';
+            actionPlaceButton.disabled = !canPlace;
+            actionMoveButton.disabled = !canMove;
+            actionPlaceButton.className = `py-2 px-3 rounded-xl border text-xs font-bold transition ${turnAction === 'PLACE' ? 'border-blue-400 bg-blue-500/20 text-blue-300' : 'border-slate-700 bg-slate-800 text-slate-400'} disabled:opacity-40 disabled:cursor-not-allowed`;
+            actionMoveButton.className = `py-2 px-3 rounded-xl border text-xs font-bold transition ${turnAction === 'MOVE' ? 'border-amber-400 bg-amber-500/20 text-amber-300' : 'border-slate-700 bg-slate-800 text-slate-400'} disabled:opacity-40 disabled:cursor-not-allowed`;
+            // Stone Counters
+            blackOnBoardEl.textContent = blackPlacedCount;
+            whiteOnBoardEl.textContent = whitePlacedCount;
+            blackRemainingEl.textContent = maxStones - blackPlacedCount;
+            whiteRemainingEl.textContent = maxStones - whitePlacedCount;
+            document.getElementById('black-stone-limit').textContent = maxStones;
+            document.getElementById('white-stone-limit').textContent = maxStones;
+
+            // History Log UI
+            moveCountEl.textContent = `${moveHistory.length} 手目`;
+            btnUndo.disabled = moveHistory.length === 0;
+            btnPass.disabled = isGameOver;
+
+            renderHistoryList();
+        }
+
+        function renderHistoryList() {
+            if (moveHistory.length === 0) {
+                historyList.innerHTML = `<div class="text-slate-500 italic text-center py-4">対局を開始してください</div>`;
+                return;
+            }
+
+            historyList.innerHTML = moveHistory.map((m, idx) => {
+                const playerStr = m.player === BLACK ? '黒' : '白';
+                const colorClass = m.player === BLACK ? 'text-slate-300' : 'text-amber-300';
+
+                let actionStr = '';
+                if (m.type === 'PLACE') {
+                    actionStr = `(${m.toR + 1}, ${m.toC + 1}) へ配置`;
+                } else if (m.type === 'MOVE') {
+                    actionStr = `(${m.fromR + 1}, ${m.fromC + 1}) → (${m.toR + 1}, ${m.toC + 1})`;
+                } else {
+                    actionStr = `パス`;
+                }
+
+                return `<div class="flex justify-between py-1 px-2 rounded bg-slate-800/40 border border-slate-800/60 text-[11px]">
+                    <span class="text-slate-500">${idx + 1}.</span>
+                    <span class="font-bold ${colorClass}">${playerStr}</span>
+                    <span class="text-slate-400">${actionStr}</span>
+                </div>`;
+            }).reverse().join('');
+        }
+
+        function setStatusMessage(msg, type = 'info') {
+            statusMessageText.textContent = msg;
+        }
+
+        // Timer Logic
+        function resetTimer() {
+            clearInterval(timerInterval);
+            if (!timerEnabled || isGameOver) {
+                timerContainer.classList.add('hidden');
+                return;
+            }
+
+            timerContainer.classList.remove('hidden');
+            timeLeft = 15;
+            timerText.textContent = `${timeLeft}s`;
+            timerBar.style.width = '100%';
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerText.textContent = `${timeLeft}s`;
+                timerBar.style.width = `${(timeLeft / 15) * 100}%`;
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    setStatusMessage('時間切れ！ターンが交代します。', 'warning');
+                    switchTurn();
+                }
+            }, 1000);
+        }
+
+        // Game Over / Win
+        function endGame(winner) {
+            isGameOver = true;
+            clearInterval(timerInterval);
+
+            const winnerStr = winner === BLACK ? '黒番 (先手)' : '白番 (後手)';
+            document.getElementById('victory-title').textContent = `${winnerStr} の勝利！`;
+            document.getElementById('victory-subtitle').textContent = `5連が完成しました`;
+            document.getElementById('final-moves').textContent = `${moveHistory.length} 手`;
+            document.getElementById('final-phase').textContent = turnAction === 'PLACE' ? '配置アクション' : '移動アクション';
+
+            modalVictory.classList.remove('hidden');
+        }
+
+        // Reset Game State
+        function resetGame() {
+            board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(EMPTY));
+            currentPlayer = BLACK;
+            turnAction = 'PLACE';
+            blackPlacedCount = 0;
+            whitePlacedCount = 0;
+            selectedStone = null;
+            isGameOver = false;
+            moveHistory = [];
+            boardStateHistory.clear();
+
+            modalVictory.classList.add('hidden');
+            setStatusMessage('手番ごとに石を置くか移動するか選んでください。');
+            
+            updateUI();
+            renderBoard();
+            resetTimer();
+        }
+
+        // Event Listeners
+        btnRestart.addEventListener('click', resetGame);
+        btnModalRestart.addEventListener('click', resetGame);
+        stoneLimitInput.addEventListener('change', () => {
+            const requestedLimit = Number.parseInt(stoneLimitInput.value, 10);
+            maxStones = Number.isFinite(requestedLimit)
+                ? Math.min(MAX_STONES_LIMIT, Math.max(MIN_STONES, requestedLimit))
+                : 15;
+            stoneLimitInput.value = maxStones;
+            resetGame();
+        });
+        btnUndo.addEventListener('click', undoMove);
+        actionPlaceButton.addEventListener('click', () => chooseTurnAction('PLACE'));
+        actionMoveButton.addEventListener('click', () => chooseTurnAction('MOVE'));
+        btnPass.addEventListener('click', passTurn);
+
+        btnRules.addEventListener('click', () => modalRules.classList.remove('hidden'));
+        closeRules.addEventListener('click', () => modalRules.classList.add('hidden'));
+        btnUnderstand.addEventListener('click', () => modalRules.classList.add('hidden'));
+
+        modeP2P.addEventListener('click', () => {
+            gameMode = 'P2P';
+            modeP2P.className = 'py-2 px-3 rounded-xl border border-amber-500/50 bg-amber-500/10 text-amber-300 font-medium text-xs flex items-center justify-center gap-2 transition';
+            modeAI.className = 'py-2 px-3 rounded-xl border border-slate-700 bg-slate-800 text-slate-400 font-medium text-xs flex items-center justify-center gap-2 hover:border-slate-600 transition';
+            resetGame();
+        });
+
+        modeAI.addEventListener('click', () => {
+            gameMode = 'AI';
+            modeAI.className = 'py-2 px-3 rounded-xl border border-amber-500/50 bg-amber-500/10 text-amber-300 font-medium text-xs flex items-center justify-center gap-2 transition';
+            modeP2P.className = 'py-2 px-3 rounded-xl border border-slate-700 bg-slate-800 text-slate-400 font-medium text-xs flex items-center justify-center gap-2 hover:border-slate-600 transition';
+            resetGame();
+        });
+
+        timerToggle.addEventListener('change', (e) => {
+            timerEnabled = e.target.checked;
+            resetTimer();
+        });
+    </script>
+</body>
+</html>
