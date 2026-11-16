@@ -5,6 +5,7 @@ import GuessGomoku from './games/GuessGomoku.jsx';
 import Igomoku from './games/Igomoku.jsx';
 import RecycleGomoku from './games/RecycleGomoku.jsx';
 import CorrectPage from './games/CorrectPage.jsx';
+import Minesweeper from './games/Minesweeper.jsx';
 
 const games = [
   { id: 'number-place', title: '数独', description: '数字を入れてパズルを完成しよう。', mark: '数', color: 'rose', Component: NumberPlace },
@@ -12,6 +13,7 @@ const games = [
   { id: 'guess-gomoku', title: '予想五目', description: '相手の次の一手を予想する五目並べ。', mark: '予', color: 'amber', Component: GuessGomoku },
   { id: 'igomoku', title: '囲碁五目並べ', description: '囲碁と五目並べを組み合わせたゲーム。', mark: '碁', color: 'violet', Component: Igomoku },
   { id: 'recycle-gomoku', title: '限定五目並べ', description: '石数上限の後は石を移動して続ける五目並べ。', mark: '限', color: 'cyan', Component: RecycleGomoku },
+  { id: 'minesweeper', title: 'マインスイーパー', description: '地雷を避けて安全なマスをすべて開こう。', mark: '爆', color: 'amber', Component: Minesweeper },
 ];
 
 function readRoute() { return window.location.hash.replace(/^#\/?/, ''); }

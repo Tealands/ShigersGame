@@ -120,3 +120,64 @@ a { color: inherit; text-decoration: none; }
 .correct-page h1 { color: #41c843; font: 800 clamp(32px,7vw,58px) Arial,sans-serif; }
 .correct-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
 .correct-links a { padding: 12px 16px; border: 1px solid #41c843; border-radius: 9px; color: #268f36; background: white; font-weight: 700; }
+
+/* Minesweeper */
+.game-theme-minesweeper { --game-accent: #f4c477; background: #1e2430; }
+.game-theme-minesweeper .game-header { background: #1e2430; }
+.mine-container { width: min(1100px,calc(100% - 28px)); margin: 0 auto; padding: 22px 0; flex: 1; }
+.mine-screen { text-align: center; }
+.mine-screen h2 { margin: 0 0 18px; color: #f3f4f6; font-size: clamp(20px,4vw,28px); }
+.mine-menu { display: grid; width: min(300px,100%); gap: 10px; margin: 0 auto 24px; }
+.mine-menu-button, .mine-control-button { min-height: 42px; padding: 10px 15px; border: 0; border-radius: 8px; color: #fff; background: #3b82f6; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.mine-menu-button { min-height: 48px; font-size: 16px; }
+.mine-menu-button:hover, .mine-control-button:hover { filter: brightness(1.12); }
+.mine-menu-button.secondary, .mine-control-button { background: #374151; }
+.mine-menu-button.secondary { font-size: 14px; }
+.mine-achievements { width: min(680px,100%); margin: 20px auto 0; padding: 16px 18px; border: 1px solid #374151; border-radius: 12px; background: #252d3b; text-align: left; }
+.mine-achievements h2 { margin: 0 0 8px; text-align: center; font-size: 19px; }
+.mine-achievements p { margin: 8px 0; text-align: center; }
+.mine-achievements ul { margin: 12px 0 0; padding: 0; list-style: none; }
+.mine-achievements li { padding: 9px 0; border-top: 1px solid #374151; color: #d1d5db; font-size: 13px; line-height: 1.6; }
+.mine-achievements li:first-child { border-top: 0; }
+.mine-intro { margin: 0 auto 20px; color: #cbd5e1; line-height: 1.7; }
+.mine-rules { max-width: 760px; margin: 0 auto; }
+.mine-rule-card { margin: 11px 0; padding: 16px 20px; border: 1px solid #374151; border-radius: 12px; background: #252d3b; text-align: left; }
+.mine-rule-card h3 { margin: 0 0 9px; font-size: 17px; }
+.mine-rule-card ul { margin: 0; padding-left: 1.4em; color: #d1d5db; font-size: 13px; line-height: 1.75; }
+.mine-rule-card li + li { margin-top: 5px; }
+.mine-rule-card strong { color: #fff; }
+.mine-control-button.primary { background: #3b82f6; }
+.mine-status { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 24px; margin-bottom: 12px; color: #f3f4f6; font-size: 15px; }
+.mine-board-wrap { max-width: 100%; max-height: calc(100vh - 250px); overflow: auto; padding: 6px; border-radius: 8px; background: #111; overscroll-behavior: contain; }
+.mine-board { display: grid; width: max-content; gap: 2px; margin: 0 auto; }
+.mine-cell { width: var(--mine-cell-size); height: var(--mine-cell-size); padding: 0; border: 0; border-radius: 3px; background: #4b5563; color: #fff; font-size: clamp(10px,calc(var(--mine-cell-size) * .68),19px); font-weight: 700; line-height: 1; user-select: none; }
+.mine-cell:not(:disabled) { cursor: pointer; }
+.mine-cell:not(:disabled):hover { background: #6b7280; }
+.mine-cell.wall { background: #202631; }
+.mine-cell.opened { background: #d1d5db; color: #111; }
+.mine-cell.mine { background: #ef4444; }
+.mine-cell.removed { background: #166534; color: #fff; }
+.mine-cell.flag-red { color: #f87171; }.mine-cell.flag-blue { color: #60a5fa; }.mine-cell.flag-yellow { color: #facc15; }.mine-cell.flag-green { color: #4ade80; }
+.mine-cell.ally-danger { background: #7f1d1d; color: #fee2e2; }
+.mine-cell.n1 { color: #2563eb; }.mine-cell.n2 { color: #16a34a; }.mine-cell.n3 { color: #dc2626; }.mine-cell.n4 { color: #7c3aed; }
+.mine-cell.n5 { color: #b45309; }.mine-cell.n6 { color: #0891b2; }
+.mine-controls { display: flex; justify-content: center; flex-wrap: wrap; gap: 9px; margin-top: 13px; }
+.mine-control-button { min-width: 130px; }
+.mine-control-button.active { background: #f59e0b; color: #111; }
+.mine-control-button.flag-red { color: #f87171; }.mine-control-button.flag-blue { color: #60a5fa; }
+.mine-control-button.flag-yellow { color: #facc15; }.mine-control-button.flag-green { color: #4ade80; }
+.mine-control-button.flag-color { min-width: 145px; }
+.mine-message { min-height: 24px; margin: 10px 0; color: #d6bf8c; font-size: 13px; font-weight: 700; line-height: 1.6; }
+.mine-message.error { color: #fca5a5; }
+.mine-results { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 12px; margin: 18px 0; }
+.mine-results > div { display: grid; gap: 8px; padding: 18px 12px; border: 1px solid #374151; border-radius: 12px; background: #252d3b; }
+.mine-results span { color: #cbd5e1; font-size: 12px; }
+.mine-results strong { font-size: clamp(23px,5vw,34px); }
+.mine-results .money { color: #facc15; }.mine-results .mines { color: #86efac; }.mine-results .hits { color: #fca5a5; }
+@media(max-width:560px) {
+  .mine-container { width: calc(100% - 20px); padding: 14px 0; }
+  .mine-status { gap: 7px 12px; font-size: 12px; }
+  .mine-board-wrap { max-height: calc(100vh - 290px); }
+  .mine-control-button { min-width: 0; padding: 9px 11px; font-size: 12px; }
+  .mine-rule-card { padding: 14px; }
+}
