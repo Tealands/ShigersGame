@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import GameLayout from '../components/GameLayout.jsx';
 import GomokuBoard from '../components/GomokuBoard.jsx';
+import { playStoneSound } from '../components/playStoneSound.js';
 import { emptyBoard, hasFive } from './pointgomoku.js';
 import { chooseRecycleAction } from './recycleCpu.js';
 
@@ -36,6 +37,7 @@ export default function RecycleGomoku() {
   const completeTurn = (nextBoard, type, info = {}) => {
     const serialized = keyOf(nextBoard);
     if (seen.has(serialized)) { setSelected(null); setStatus('コウルール違反：過去と同じ盤面に戻る手は禁手です。'); return false; }
+    playStoneSound();
     save(); setBoard(nextBoard); setSeen(old => new Set([...old, serialized]));
     setLogs(old => [{ player: turn, type, ...info }, ...old].slice(0, 40));
     const pos = info.r !== undefined ? `(${info.r+1}, ${info.c+1})` : '';

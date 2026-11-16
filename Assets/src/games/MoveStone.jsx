@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import GameLayout from '../components/GameLayout.jsx';
 import GomokuBoard from '../components/GomokuBoard.jsx';
+import { playStoneSound } from '../components/playStoneSound.js';
 import { emptyBoard } from './pointgomoku.js';
 
 function captureSurrounded(board, target) {
@@ -28,10 +29,12 @@ export default function MoveStone() {
   const clickCell=(r,c)=>{
     if(!moveMode) {
       if(board[r][c]) {setMessage('そこには置けません。');return;}
+      playStoneSound();
       snapshot();const next=board.map(row=>[...row]);next[r][c]=turn;setBoard(captureSurrounded(next,3-turn));switchTurn();setMessage('石を配置しました。');return;
     }
     if(!selected){if(board[r][c]===turn)setSelected({r,c});else setMessage('自分の石を選んでください。');return;}
     if(board[r][c] || (Math.abs(selected.r-r)+Math.abs(selected.c-c)!==1)){setMessage('隣の空点を移動先に選んでください。');return;}
+    playStoneSound();
     snapshot();const next=board.map(row=>[...row]);next[selected.r][selected.c]=0;next[r][c]=turn;setBoard(captureSurrounded(next,3-turn));setSelected(null);
     if(moves+1>=2){switchTurn();setMessage('石を移動し、手番を交代しました。');}else{setMoves(m=>m+1);setMessage('あと1回移動できます。');}
   };

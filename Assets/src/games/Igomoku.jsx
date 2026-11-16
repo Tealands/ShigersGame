@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import GameLayout from '../components/GameLayout.jsx';
 import GomokuBoard from '../components/GomokuBoard.jsx';
+import { playStoneSound } from '../components/playStoneSound.js';
 import { captureMove, emptyBoard, hasFive } from './pointgomoku.js';
 import { chooseGomokuIgoMove } from './GomokuIgo.js';
 
@@ -28,6 +29,7 @@ export default function Igomoku() {
     if(!move){setMessage('呼吸点がない自殺手は打てません。');return;}
     const serialized=key(move.board);
     if(seen.has(serialized)){setMessage('千日手禁止：過去と同じ盤面には戻れません。');return;}
+    playStoneSound();
     setHistory(h=>[...h,{board,turn,last,captures,seen}]);setBoard(move.board);setSeen(s=>new Set([...s,serialized]));setLast({r,c});
     if(move.captured)setCaptures(old=>({...old,[player]:old[player]+move.captured}));
     if(hasFive(move.board,r,c,player)){setWinner(player);setShowResult(true);setMessage(`${player===1?'黒':'白'}番が5連を達成しました！`);return;}

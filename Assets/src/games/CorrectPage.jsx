@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import anthem from '../../KeepOut/rule_britannia.mp3';
-import photo from '../../KeepOut/Elizabeth_Tower,_June_2022.jpg';
+import anthem from '../../../KeepOut/rule_britannia.mp3';
+import photo from '../../../KeepOut/Elizabeth_Tower,_June_2022.jpg';
 
 export default function CorrectPage() {
   const [revealed, setRevealed] = useState(false);

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import GameLayout from '../components/GameLayout.jsx';
 import GomokuBoard from '../components/GomokuBoard.jsx';
+import { playStoneSound } from '../components/playStoneSound.js';
 import { bestGomokuMove, emptyBoard, hasFive } from './pointgomoku.js';
 
 export default function GuessGomoku() {
@@ -26,6 +27,7 @@ export default function GuessGomoku() {
   };
   const place = (next, r, c, player) => {
     next[r][c] = player;
+    playStoneSound();
     setBoard(next);
     if (player === 2 && predictionRef.current) {
       const hit = predictionRef.current.r === r && predictionRef.current.c === c;
