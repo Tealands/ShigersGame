@@ -19,6 +19,7 @@ export default function RecycleGomoku() {
   const [seen, setSeen] = useState(() => new Set([keyOf(emptyBoard())]));
   const [status, setStatus] = useState('手番ごとに石を配置または移動します。');
   const [winner, setWinner] = useState(0);
+  const [reviewingBoard, setReviewingBoard] = useState(false);
   const [rules, setRules] = useState(false);
   const [timerEnabled, setTimerEnabled] = useState(false);
   const [seconds, setSeconds] = useState(15);
@@ -28,7 +29,7 @@ export default function RecycleGomoku() {
 
   const reset = (nextMode = mode, nextLimit = limit) => {
     setBoard(emptyBoard()); setTurn(1); setMode(nextMode); setLimit(nextLimit); setLimitDraft(nextLimit); setPhase('PLACE'); setSelected(null);
-    setHistory([]); setSeen(new Set([keyOf(emptyBoard())])); setWinner(0); setSeconds(15); setLogs([]);
+    setHistory([]); setSeen(new Set([keyOf(emptyBoard())])); setWinner(0); setReviewingBoard(false); setSeconds(15); setLogs([]);
     setStatus('手番ごとに石を配置または移動します。');
   };
   const save = () => setHistory(items => [...items, { board: cloneBoard(board), turn, phase, seen: new Set(seen), winner }]);
@@ -96,8 +97,8 @@ export default function RecycleGomoku() {
         <div className="button-row"><button className="game-button" disabled={!history.length} onClick={undo}>待った (1手戻す)</button><button className="game-button" onClick={pass}>パス</button><button className="game-button" onClick={()=>setRules(true)}>ルール</button></div>
       </section>
       <section className="game-panel"><h2>棋譜・対局履歴 <small>{logs.length}手</small></h2><div className="log-list">{logs.map((m,i)=><div className="log-entry" key={i}>{m.player===1?'黒':'白'} · {m.type==='PASS'?'パス':m.type==='PLACE'?`(${m.r+1},${m.c+1}) に配置`:`(${m.fromR+1},${m.fromC+1}) → (${m.r+1},${m.c+1})`}</div>)}</div></section>
-    </aside><section className="recycle-board-area"><GomokuBoard board={board} onCell={clickCell} selected={selected} /><p className="board-caption">{phase==='PLACE'?'空き交点に石を置く':'自分の石を選んで空き交点へ移動'}</p></section></main>
+    </aside><section className="recycle-board-area"><GomokuBoard board={board} onCell={clickCell} selected={selected} /><p className="board-caption">{phase==='PLACE'?'空き交点に石を置く':'自分の石を選んで空き交点へ移動'}</p>{reviewingBoard && <button className="game-button" onClick={() => setReviewingBoard(false)}>対局結果を見る</button>}</section></main>
     {rules && <div className="game-modal"><div><button className="modal-close" onClick={()=>setRules(false)}>×</button><h2>リサイクル・ゴモクのルール</h2><p>石数の上限まで配置し、その後は自分の石を空き交点へ移動します。五連を作ると勝利です。過去と同じ盤面には移動できません。</p><button className="game-button primary" onClick={()=>setRules(false)}>OK</button></div></div>}
-    {winner>0 && <div className="game-modal"><div><h2>{winner===1?'黒':'白'}の勝利！</h2><p>5連が完成しました</p><button className="game-button primary" onClick={()=>reset()}>もう一度遊ぶ</button></div></div>}
+    {winner>0 && !reviewingBoard && <div className="game-modal"><div><h2>{winner===1?'黒':'白'}の勝利！</h2><p>5連が完成しました</p><button className="game-button" onClick={()=>setReviewingBoard(true)}>盤面を見る</button><button className="game-button primary" onClick={()=>reset()}>もう一度遊ぶ</button></div></div>}
   </GameLayout>;
 }

@@ -15,13 +15,14 @@ export default function GuessGomoku() {
   const [stats, setStats] = useState({ total: 0, hits: 0, ppoints: 0, score: 0 });
   const [result, setResult] = useState(null);
   const [ended, setEnded] = useState(false);
+  const [reviewingBoard, setReviewingBoard] = useState(false);
   const timerRef = useRef(null);
 
   useEffect(() => () => clearTimeout(timerRef.current), []);
   const log = (message, type = 'info') => setLogs(old => [{ message, type, time: new Date().toLocaleTimeString() }, ...old].slice(0, 30));
   const restart = (mode = vsAi) => {
     clearTimeout(timerRef.current); setVsAi(mode); setBoard(emptyBoard()); setTurn(1); setThinking(false); setCountdown(3);
-    setPrediction(null); predictionRef.current = null; setLogs([]); setStats(s => ({ ...s, total: 0, hits: 0, ppoints: 0 })); setResult(null); setEnded(false);
+    setPrediction(null); predictionRef.current = null; setLogs([]); setStats(s => ({ ...s, total: 0, hits: 0, ppoints: 0 })); setResult(null); setEnded(false); setReviewingBoard(false);
   };
   const place = (next, r, c, player) => {
     next[r][c] = player;
@@ -83,9 +84,9 @@ export default function GuessGomoku() {
         </section>
         <section className="game-panel"><h2>予想ログ・対局履歴</h2><div className="log-list">{logs.length ? logs.map((entry,i)=><div className={`log-entry ${entry.type}`} key={i}><span>{entry.message}</span><time>{entry.time}</time></div>) : <p className="muted">対局が始まると予想結果が表示されます</p>}</div></section>
       </aside>
-      <section className="prediction-board-area"><GomokuBoard board={board} onCell={handleCell} lastMove={null} prediction={prediction} /><p className="board-caption">黒：先手　·　白：後手　·　🎯：予想位置</p></section>
+      <section className="prediction-board-area"><GomokuBoard board={board} onCell={handleCell} lastMove={null} prediction={prediction} /><p className="board-caption">黒：先手　·　白：後手　·　🎯：予想位置</p>{reviewingBoard && <button className="game-button" onClick={() => setReviewingBoard(false)}>対局結果を見る</button>}</section>
     </main>
-    {result && <div className="game-modal"><div><h2>{result}</h2><p>予想的中 {stats.hits} / {stats.total}　獲得ポイント {stats.ppoints}</p><button className="game-button primary" onClick={() => restart()}>もう一度遊ぶ</button></div></div>}
+    {result && !reviewingBoard && <div className="game-modal"><div><h2>{result}</h2><p>予想的中 {stats.hits} / {stats.total}　獲得ポイント {stats.ppoints}</p><button className="game-button" onClick={() => setReviewingBoard(true)}>盤面を見る</button><button className="game-button primary" onClick={() => restart()}>もう一度遊ぶ</button></div></div>}
     <div className="score-corner">TOTAL <strong>{stats.score}</strong> pt</div>
   </GameLayout>;
 }
