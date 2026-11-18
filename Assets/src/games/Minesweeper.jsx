@@ -7,8 +7,10 @@ import flagSound from '../../Sounds/Flag.mp3';
 import missSound from '../../Sounds/Miss.mp3';
 import openSound from '../../Sounds/Open.mp3';
 import payingSound from '../../Sounds/Paying.mp3';
+import { boardSaveStorageKey, readBoardSave, writeBoardSave } from '../components/boardSave.js';
 
 const achievementStorageKey = 'minesweeper.clearAchievements';
+const mineSaveKey = boardSaveStorageKey('minesweeper');
 const difficulties = { 100: '簡単', 200: '普通', 300: '難しい' };
 const flagColors = [
   { id: 'red', label: '赤' },
@@ -254,13 +256,25 @@ function viewState(game, message) {
   };
 }
 
+function isMineSnapshot(value) {
+  return value && ['home', 'game', 'clear', 'rules'].includes(value.screen)
+    && Number.isInteger(value.currentMines) && [100, 200, 300].includes(value.currentMines)
+    && value.game && value.game.board
+    && Array.isArray(value.game.board.cells)
+    && Number.isInteger(value.game.board.rows)
+    && Number.isInteger(value.game.board.cols)
+    && typeof value.game.board.initialized === 'boolean';
+}
+
 export default function Minesweeper() {
-  const [screen, setScreen] = useState('home');
-  const [game, setGame] = useState(null);
-  const [currentMines, setCurrentMines] = useState(100);
-  const [removeMode, setRemoveMode] = useState(false);
-  const [flagColorIndex, setFlagColorIndex] = useState(0);
-  const [message, setMessage] = useState('');
+  const [initialSave] = useState(() => readBoardSave(mineSaveKey, isMineSnapshot));
+  const saved = initialSave.current;
+  const [screen, setScreen] = useState(() => saved?.screen && saved.game ? saved.screen : 'home');
+  const [game, setGame] = useState(() => saved?.game ?? null);
+  const [currentMines, setCurrentMines] = useState(() => saved?.currentMines ?? 100);
+  const [removeMode, setRemoveMode] = useState(() => saved?.removeMode ?? false);
+  const [flagColorIndex, setFlagColorIndex] = useState(() => saved?.flagColorIndex ?? 0);
+  const [message, setMessage] = useState(() => saved?.message ?? '');
   const [homeMessage, setHomeMessage] = useState('');
   const [achievementMessage, setAchievementMessage] = useState('');
   const [clearAchievementMessage, setClearAchievementMessage] = useState('');
@@ -268,11 +282,20 @@ export default function Minesweeper() {
   const [achievementError, setAchievementError] = useState('');
   const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
   const audioRefs = useRef({});
+  const [recovery, setRecovery] = useState(initialSave.recovery);
   const state = game ? viewState(game, message) : null;
   const selectedFlag = flagColors[flagColorIndex];
   const cellSize = state
     ? Math.max(12, Math.min(30, Math.floor((Math.min(viewportWidth - 48, 1080) - (state.cols - 1) * 2) / state.cols)))
     : 30;
+  const mineSnapshot = () => ({
+    screen, game, currentMines, removeMode, flagColorIndex, message,
+  });
+
+  useEffect(() => {
+    try { writeBoardSave(mineSaveKey, mineSnapshot(), recovery); }
+    catch { setHomeMessage('盤面を保存できませんでした。ブラウザーのストレージ設定をご確認ください。'); }
+  }, [screen, game, currentMines, removeMode, flagColorIndex, message, recovery]);
 
   useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth);
@@ -300,6 +323,7 @@ export default function Minesweeper() {
 
   function startGame(mines = currentMines) {
     try {
+      if (game && screen === 'game') setRecovery(mineSnapshot());
       const next = createGame(mines);
       setCurrentMines(mines);
       setGame(next);
@@ -397,6 +421,17 @@ export default function Minesweeper() {
     setFlagColorIndex((index) => (index + direction + flagColors.length) % flagColors.length);
   }
 
+  const restoreSavedBoard = () => {
+    if (!recovery) return;
+    setScreen(recovery.screen === 'clear' ? 'clear' : 'game');
+    setGame(recovery.game);
+    setCurrentMines(recovery.currentMines);
+    setRemoveMode(recovery.removeMode ?? false);
+    setFlagColorIndex(recovery.flagColorIndex ?? 0);
+    setMessage(recovery.message ?? '保存した盤面を復元しました。');
+    setRecovery(null);
+  };
+
   const backHome = () => {
     setRemoveMode(false);
     setScreen('home');
@@ -416,6 +451,9 @@ export default function Minesweeper() {
               ))}
               <button className="mine-menu-button secondary" type="button" onClick={() => setScreen('rules')}>
                 遊び方・ルール
+              </button>
+              <button className="mine-menu-button secondary" type="button" onClick={restoreSavedBoard} disabled={!recovery}>
+                保存した盤面を復元
               </button>
             </div>
             {homeMessage && <p className="mine-message error" role="alert">{homeMessage}</p>}

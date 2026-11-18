@@ -2,36 +2,67 @@ import { useEffect, useMemo, useState } from 'react';
 import GameLayout from '../components/GameLayout.jsx';
 import GomokuBoard from '../components/GomokuBoard.jsx';
 import { playStoneSound } from '../components/playStoneSound.js';
+import { boardSaveStorageKey, readBoardSave, writeBoardSave } from '../components/boardSave.js';
 import { emptyBoard, hasFive } from './pointgomoku.js';
 import { chooseRecycleAction } from './recycleCpu.js';
 
 const cloneBoard = board => board.map(row => [...row]);
 const keyOf = board => board.map(row => row.join('')).join('');
+const recycleSaveKey = boardSaveStorageKey('recycle-gomoku');
+
+function isRecycleSnapshot(value) {
+  return value && Array.isArray(value.board) && value.board.length === 15
+    && value.board.every(row => Array.isArray(row) && row.length === 15 && row.every(cell => cell === 0 || cell === 1 || cell === 2))
+    && (value.turn === 1 || value.turn === 2) && (value.mode === 'P2P' || value.mode === 'AI')
+    && Number.isInteger(value.limit) && value.limit >= 5 && value.limit <= 30
+    && (value.phase === 'PLACE' || value.phase === 'MOVE')
+    && Array.isArray(value.seen) && value.seen.every(item => typeof item === 'string')
+    && Array.isArray(value.history) && (value.winner === 0 || value.winner === 1 || value.winner === 2);
+}
 
 export default function RecycleGomoku() {
-  const [board, setBoard] = useState(emptyBoard);
-  const [turn, setTurn] = useState(1);
-  const [mode, setMode] = useState('P2P');
-  const [limit, setLimit] = useState(15);
-  const [limitDraft, setLimitDraft] = useState(15);
-  const [phase, setPhase] = useState('PLACE');
+  const [initialSave] = useState(() => readBoardSave(recycleSaveKey, isRecycleSnapshot));
+  const saved = initialSave.current;
+  const [board, setBoard] = useState(() => saved?.board ?? emptyBoard());
+  const [turn, setTurn] = useState(() => saved?.turn ?? 1);
+  const [mode, setMode] = useState(() => saved?.mode ?? 'P2P');
+  const [limit, setLimit] = useState(() => saved?.limit ?? 15);
+  const [limitDraft, setLimitDraft] = useState(() => saved?.limit ?? 15);
+  const [phase, setPhase] = useState(() => saved?.phase ?? 'PLACE');
   const [selected, setSelected] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [seen, setSeen] = useState(() => new Set([keyOf(emptyBoard())]));
+  const [history, setHistory] = useState(() => saved?.history?.map(item => ({ ...item, seen: new Set(item.seen) })) ?? []);
+  const [seen, setSeen] = useState(() => saved ? new Set(saved.seen) : new Set([keyOf(emptyBoard())]));
   const [status, setStatus] = useState('手番ごとに石を配置または移動します。');
-  const [winner, setWinner] = useState(0);
+  const [winner, setWinner] = useState(() => saved?.winner ?? 0);
   const [reviewingBoard, setReviewingBoard] = useState(false);
   const [rules, setRules] = useState(false);
-  const [timerEnabled, setTimerEnabled] = useState(false);
-  const [seconds, setSeconds] = useState(15);
-  const [logs, setLogs] = useState([]);
+  const [timerEnabled, setTimerEnabled] = useState(() => saved?.timerEnabled ?? false);
+  const [seconds, setSeconds] = useState(() => saved?.seconds ?? 15);
+  const [logs, setLogs] = useState(() => saved?.logs ?? []);
+  const [recovery, setRecovery] = useState(initialSave.recovery);
+  const snapshot = () => ({
+    board: cloneBoard(board), turn, mode, limit, limitDraft, phase,
+    history: history.map(item => ({ ...item, board: cloneBoard(item.board), seen: [...item.seen] })),
+    seen: [...seen], winner, timerEnabled, seconds, logs,
+  });
   const counts = useMemo(() => ({ 1: board.flat().filter(n => n === 1).length, 2: board.flat().filter(n => n === 2).length }), [board]);
   const actionDefault = count => count < limit ? 'PLACE' : 'MOVE';
 
   const reset = (nextMode = mode, nextLimit = limit) => {
+    const hasProgress = board.some(row => row.some(cell => cell !== 0)) || history.length > 0 || winner > 0;
+    if (hasProgress) setRecovery(snapshot());
     setBoard(emptyBoard()); setTurn(1); setMode(nextMode); setLimit(nextLimit); setLimitDraft(nextLimit); setPhase('PLACE'); setSelected(null);
     setHistory([]); setSeen(new Set([keyOf(emptyBoard())])); setWinner(0); setReviewingBoard(false); setSeconds(15); setLogs([]);
-    setStatus('手番ごとに石を配置または移動します。');
+    setStatus(hasProgress ? '盤面をリセットしました。前の盤面を復元できます。' : '手番ごとに石を配置または移動します。');
+  };
+  const restore = () => {
+    if (!recovery) return;
+    setBoard(cloneBoard(recovery.board)); setTurn(recovery.turn); setMode(recovery.mode); setLimit(recovery.limit);
+    setLimitDraft(recovery.limitDraft); setPhase(recovery.phase);
+    setHistory(recovery.history.map(item => ({ ...item, board: cloneBoard(item.board), seen: new Set(item.seen) })));
+    setSeen(new Set(recovery.seen)); setWinner(recovery.winner); setTimerEnabled(recovery.timerEnabled ?? false);
+    setSeconds(recovery.seconds ?? 15); setLogs(recovery.logs ?? []); setSelected(null); setRecovery(null);
+    setStatus('保存していた盤面を復元しました。');
   };
   const save = () => setHistory(items => [...items, { board: cloneBoard(board), turn, phase, seen: new Set(seen), winner }]);
   const completeTurn = (nextBoard, type, info = {}) => {
@@ -86,6 +117,11 @@ export default function RecycleGomoku() {
     return () => clearInterval(id);
   }, [timerEnabled, turn, winner]);
 
+  useEffect(() => {
+    try { writeBoardSave(recycleSaveKey, snapshot(), recovery); }
+    catch { setStatus('盤面を保存できませんでした。ブラウザーのストレージ設定をご確認ください。'); }
+  }, [board, turn, mode, limit, limitDraft, phase, history, seen, winner, timerEnabled, seconds, logs, recovery]);
+
   return <GameLayout title="リサイクル・ゴモク" subtitle="Recycle Gomoku (15×15 / 石数変更可)" theme="recycle">
     <main className="recycle-layout"><aside className="game-sidebar">
       <section className="game-panel"><h2>対局設定</h2><div className="button-row"><button className={`game-button ${mode==='P2P'?'active':''}`} onClick={()=>reset('P2P')}>二人で遊ぶ</button><button className={`game-button ${mode==='AI'?'active':''}`} onClick={()=>reset('AI')}>VS AI (後手)</button></div>
@@ -97,6 +133,8 @@ export default function RecycleGomoku() {
         {timerEnabled && <p>残り {seconds}s</p>}
         <div className="inventory"><span>⚫ {counts[1]}/{limit} ({limit-counts[1]}個未配置)</span><span>⚪ {counts[2]}/{limit} ({limit-counts[2]}個未配置)</span></div>
         <div className="button-row"><button className="game-button" disabled={!history.length} onClick={undo}>待った (1手戻す)</button><button className="game-button" onClick={pass}>パス</button><button className="game-button" onClick={()=>setRules(true)}>ルール</button></div>
+        <button className="game-button full" onClick={restore} disabled={!recovery}>保存した盤面を復元</button>
+        <p className="help-text">盤面はこのブラウザーに自動保存されます。</p>
       </section>
       <section className="game-panel"><h2>棋譜・対局履歴 <small>{logs.length}手</small></h2><div className="log-list">{logs.map((m,i)=><div className="log-entry" key={i}>{m.player===1?'黒':'白'} · {m.type==='PASS'?'パス':m.type==='PLACE'?`(${m.r+1},${m.c+1}) に配置`:`(${m.fromR+1},${m.fromC+1}) → (${m.r+1},${m.c+1})`}</div>)}</div></section>
     </aside><section className="recycle-board-area"><GomokuBoard board={board} onCell={clickCell} selected={selected} /><p className="board-caption">{phase==='PLACE'?'空き交点に石を置く':'自分の石を選んで空き交点へ移動'}</p>{reviewingBoard && <button className="game-button" onClick={() => setReviewingBoard(false)}>対局結果を見る</button>}</section></main>

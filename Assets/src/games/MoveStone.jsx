@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import GameLayout from '../components/GameLayout.jsx';
 import GomokuBoard from '../components/GomokuBoard.jsx';
 import { playStoneSound } from '../components/playStoneSound.js';
+import { boardSaveStorageKey, readBoardSave, writeBoardSave } from '../components/boardSave.js';
 import { emptyBoard } from './pointgomoku.js';
 
 const cloneBoard = board => board.map(row => [...row]);
-const storageKey = size => `shigers.move-stone.v1.${size}`;
+const legacyStorageKey = size => `shigers.move-stone.v1.${size}`;
+const storageKey = size => boardSaveStorageKey('move-stone', String(size));
 
 function isGameSnapshot(value, size) {
   return value
@@ -32,21 +34,23 @@ function isGameSnapshot(value, size) {
 }
 
 function readSavedGame(size) {
+  const saved = readBoardSave(storageKey(size), value => isGameSnapshot(value, size));
+  if (saved.current || saved.recovery || saved.error) return saved;
+
   try {
-    const stored = window.localStorage.getItem(storageKey(size));
-    if (!stored) return { current: null, recovery: null, error: '' };
+    const stored = window.localStorage.getItem(legacyStorageKey(size));
+    if (!stored) return saved;
     const data = JSON.parse(stored);
-    if (data?.version !== 1 || data.size !== size) {
-      return { current: null, recovery: null, error: '保存データを読み取れませんでした。新しい対局を開始します。' };
-    }
-    const current = isGameSnapshot(data.current, size) ? data.current : null;
-    const recovery = isGameSnapshot(data.recovery, size) ? data.recovery : null;
-    const error = data.current && !current
-      ? '保存データが壊れていたため、新しい対局を開始します。'
-      : '';
-    return { current, recovery, error };
+    if (data?.version !== 1 || data.size !== size) return saved;
+    return {
+      current: isGameSnapshot(data.current, size) ? data.current : null,
+      recovery: isGameSnapshot(data.recovery, size) ? data.recovery : null,
+      error: data.current && !isGameSnapshot(data.current, size)
+        ? '保存データが壊れていたため、新しい対局を開始します。'
+        : '',
+    };
   } catch {
-    return { current: null, recovery: null, error: '保存データを読み込めませんでした。' };
+    return saved;
   }
 }
 
@@ -130,12 +134,7 @@ export default function MoveStone() {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(storageKey(size), JSON.stringify({
-        version: 1,
-        size,
-        current: gameSnapshot(),
-        recovery,
-      }));
+      writeBoardSave(storageKey(size), gameSnapshot(), recovery);
       setStorageError('');
     } catch {
       setStorageError('盤面を保存できませんでした。ブラウザーのストレージ設定をご確認ください。');
