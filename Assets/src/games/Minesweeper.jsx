@@ -8,6 +8,7 @@ import missSound from '../../Sounds/Miss.mp3';
 import openSound from '../../Sounds/Open.mp3';
 import payingSound from '../../Sounds/Paying.mp3';
 import { boardSaveStorageKey, readBoardSave, writeBoardSave } from '../components/boardSave.js';
+import BoardSaveControls from '../components/BoardSaveControls.jsx';
 
 const achievementStorageKey = 'minesweeper.clearAchievements';
 const mineSaveKey = boardSaveStorageKey('minesweeper');
@@ -259,11 +260,12 @@ function viewState(game, message) {
 function isMineSnapshot(value) {
   return value && ['home', 'game', 'clear', 'rules'].includes(value.screen)
     && Number.isInteger(value.currentMines) && [100, 200, 300].includes(value.currentMines)
-    && value.game && value.game.board
-    && Array.isArray(value.game.board.cells)
-    && Number.isInteger(value.game.board.rows)
-    && Number.isInteger(value.game.board.cols)
-    && typeof value.game.board.initialized === 'boolean';
+    && ((value.screen === 'home' && value.game === null)
+      || (value.game && value.game.board
+        && Array.isArray(value.game.board.cells)
+        && Number.isInteger(value.game.board.rows)
+        && Number.isInteger(value.game.board.cols)
+        && typeof value.game.board.initialized === 'boolean'));
 }
 
 export default function Minesweeper() {
@@ -432,6 +434,15 @@ export default function Minesweeper() {
     setRecovery(null);
   };
 
+  const importMineBoard = imported => {
+    setScreen(imported.screen === 'clear' ? 'clear' : imported.screen === 'rules' ? 'rules' : imported.game ? 'game' : 'home');
+    setGame(imported.game);
+    setCurrentMines(imported.currentMines);
+    setRemoveMode(imported.removeMode ?? false);
+    setFlagColorIndex(imported.flagColorIndex ?? 0);
+    setMessage(imported.message ?? 'JSONから盤面を復元しました。');
+  };
+
   const backHome = () => {
     setRemoveMode(false);
     setScreen('home');
@@ -456,6 +467,14 @@ export default function Minesweeper() {
                 保存した盤面を復元
               </button>
             </div>
+            <BoardSaveControls
+              gameId="minesweeper"
+              snapshot={mineSnapshot}
+              validateSnapshot={isMineSnapshot}
+              onImport={importMineBoard}
+              storageKey={mineSaveKey}
+              recovery={recovery}
+            />
             {homeMessage && <p className="mine-message error" role="alert">{homeMessage}</p>}
             <section className="mine-achievements" aria-labelledby="mine-achievement-title">
               <h2 id="mine-achievement-title">🏆 クリア実績</h2>

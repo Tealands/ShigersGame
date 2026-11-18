@@ -3,6 +3,7 @@ import GameLayout from '../components/GameLayout.jsx';
 import GomokuBoard from '../components/GomokuBoard.jsx';
 import { playStoneSound } from '../components/playStoneSound.js';
 import { boardSaveStorageKey, readBoardSave, writeBoardSave } from '../components/boardSave.js';
+import BoardSaveControls from '../components/BoardSaveControls.jsx';
 import { emptyBoard } from './pointgomoku.js';
 
 const cloneBoard = board => board.map(row => [...row]);
@@ -287,6 +288,20 @@ export default function MoveStone() {
     setMessage('保存していた盤面を復元しました。');
   };
 
+  const importBoard = imported => {
+    setBoard(cloneBoard(imported.board));
+    setTurn(imported.turn);
+    setMoveMode(imported.moveMode);
+    setMoves(imported.moves);
+    setCaptures({ ...imported.captures });
+    setPassStreak(imported.passStreak);
+    setFinished(imported.finished);
+    setWinner(imported.winner);
+    setHistory([]);
+    setSelected(null);
+    setMessage('JSONから盤面を復元しました。');
+  };
+
   return <GameLayout title="移碁" subtitle="石を動かして相手を囲む、戦略型ボードゲーム" theme="moves">
     <main className="moves-layout">
       <aside className="game-sidebar">
@@ -318,6 +333,15 @@ export default function MoveStone() {
             </div>
             <button className="game-button" onClick={restore} disabled={!recovery}>保存した盤面を復元</button>
           </div>
+          <BoardSaveControls
+            gameId="move-stone"
+            variant={String(size)}
+            snapshot={gameSnapshot}
+            validateSnapshot={value => isGameSnapshot(value, size)}
+            onImport={importBoard}
+            storageKey={storageKey(size)}
+            recovery={recovery}
+          />
           {moveMode && !finished && <p className="help-text">自分の石を選び、隣の空点を選ぶと移動。手番ごとに2回まで移動できます。</p>}
           {passStreak === 1 && !finished && <p className="help-text">次のパスで対局終了です。</p>}
           <p className="help-text">盤面はこのブラウザーに自動保存されます。新しい対局を始めると、直前の盤面を復元できます。</p>

@@ -3,6 +3,7 @@ import GameLayout from '../components/GameLayout.jsx';
 import GomokuBoard from '../components/GomokuBoard.jsx';
 import { playStoneSound } from '../components/playStoneSound.js';
 import { boardSaveStorageKey, readBoardSave, writeBoardSave } from '../components/boardSave.js';
+import BoardSaveControls from '../components/BoardSaveControls.jsx';
 import { captureMove, emptyBoard, hasFive } from './pointgomoku.js';
 import { chooseGomokuIgoMove } from './GomokuIgo.js';
 
@@ -74,6 +75,13 @@ export default function Igomoku() {
   const undo=()=>{if(!history.length)return;const steps=mode==='AI'&&(turn===1||winner===2)&&history.length>1?2:1;const prev=history[history.length-steps];setBoard(prev.board);setTurn(prev.turn);setLast(prev.last);setCaptures(prev.captures);setSeen(prev.seen);setHistory(h=>h.slice(0,-steps));setWinner(0);setShowResult(false);setReviewing(false);setReviewIndex(0);};
   const startReview=()=>{setReviewIndex(history.length);setReviewing(true);setShowResult(false);};
   const returnToFinalBoard=()=>{setReviewIndex(history.length);setReviewing(false);};
+  const importBoard=imported=>{
+    setBoard(imported.board.map(row=>[...row]));
+    setTurn(imported.turn);setMode(imported.mode);setLast(imported.last ?? null);setCaptures({...imported.captures});
+    setSeen(new Set(imported.seen));setHistory(imported.history.map(item=>({...item,seen:new Set(item.seen)})));
+    setWinner(imported.winner);setShowResult(false);setReviewing(false);setReviewIndex(0);
+    setMessage('JSONから盤面を復元しました。');
+  };
   const reviewedState=reviewing&&reviewIndex<history.length?history[reviewIndex]:{board,turn,last,captures};
 
   useEffect(()=>{
@@ -102,6 +110,7 @@ export default function Igomoku() {
       <div className="button-row"><button className={`game-button ${mode==='P2P'?'active':''}`} onClick={()=>reset('P2P')}>二人で対戦</button><button className={`game-button ${mode==='AI'?'active':''}`} onClick={()=>reset('AI')}>VS AI (後手)</button></div>
       <div className="button-column"><button className="game-button primary" disabled={winner>0||(mode==='AI'&&turn===2)} onClick={()=>pass()}>パス</button><button className="game-button" disabled={!history.length||winner>0} onClick={undo}>一手戻す</button><button className="game-button" onClick={()=>setRules(true)}>ルール説明</button><button className="game-button" onClick={()=>reset()}>盤面リセット</button></div>
       <button className="game-button full" onClick={restore} disabled={!recovery}>保存した盤面を復元</button>
+      <BoardSaveControls gameId="igomoku" snapshot={snapshot} validateSnapshot={isIgomokuSnapshot} onImport={importBoard} storageKey={igomokuSaveKey} recovery={recovery}/>
       <p className="help-text">盤面はこのブラウザーに自動保存されます。</p>
       </section></aside><section className="igomoku-board-area"><GomokuBoard board={reviewing?reviewedState.board:board} onCell={place} lastMove={reviewing?reviewedState.last:last}/><p className="board-caption">{reviewing?`${reviewIndex} / ${history.length}手`:<>⚫ 黒石　 ⚪ 白石　 ·　赤点：最新の着手</>}</p></section></main>
     {rules&&<div className="game-modal"><div><button className="modal-close" onClick={()=>setRules(false)}>×</button><h2>ルール</h2><p>五連を作ると勝利です。相手の石を四方から囲むと捕獲できます。呼吸点がない自殺手、同じ盤面に戻る手は禁止です。</p><button className="game-button primary" onClick={()=>setRules(false)}>閉じる</button></div></div>}

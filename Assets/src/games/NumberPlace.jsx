@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import GameLayout from '../components/GameLayout.jsx';
 import { boardSaveStorageKey, readBoardSave, writeBoardSave } from '../components/boardSave.js';
+import BoardSaveControls from '../components/BoardSaveControls.jsx';
 import { makeSudoku, validSudoku } from './sudoku.js';
 
 const sudokuSaveKey = boardSaveStorageKey('number-place');
@@ -67,6 +68,12 @@ export default function NumberPlace() {
         <p className="sudoku-message" role="status">{message}</p>
         <div className="sudoku-controls"><div>{['easy','medium','hard'].map(level => <button className={difficulty === level ? 'active' : ''} key={level} onClick={() => start(level)}>{level[0].toUpperCase()+level.slice(1)}</button>)}</div><button className="primary" onClick={check}>Check Solution</button></div>
         <div className="button-row sudoku-recovery"><button className="game-button" onClick={restore} disabled={!recovery}>保存した盤面を復元</button></div>
+        <BoardSaveControls gameId="number-place" snapshot={snapshot} validateSnapshot={isSudokuSnapshot} onImport={imported => {
+          setGame(imported.game);
+          setValues(imported.values.map(row => [...row]));
+          setDifficulty(imported.difficulty);
+          setMessage('JSONから盤面を復元しました。');
+        }} storageKey={sudokuSaveKey} recovery={recovery} />
         <p className="help-text">盤面はこのブラウザーに自動保存されます。</p>
       </section>
     </main>

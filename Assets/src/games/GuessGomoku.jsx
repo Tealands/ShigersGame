@@ -3,6 +3,7 @@ import GameLayout from '../components/GameLayout.jsx';
 import GomokuBoard from '../components/GomokuBoard.jsx';
 import { playStoneSound } from '../components/playStoneSound.js';
 import { boardSaveStorageKey, readBoardSave, writeBoardSave } from '../components/boardSave.js';
+import BoardSaveControls from '../components/BoardSaveControls.jsx';
 import { bestGomokuMove, emptyBoard, hasFive } from './pointgomoku.js';
 const guessSaveKey = boardSaveStorageKey('guess-gomoku');
 
@@ -56,6 +57,13 @@ export default function GuessGomoku() {
     predictionRef.current = recovery.prediction ?? null;
     setLogs(recovery.logs ?? []); setStats(recovery.stats ?? { total: 0, hits: 0, ppoints: 0, score: 0 });
     setResult(recovery.result ?? null); setEnded(recovery.ended ?? false); setReviewingBoard(false); setRecovery(null);
+  };
+  const importBoard = imported => {
+    setBoard(imported.board.map(row=>[...row]));
+    setTurn(imported.turn);setVsAi(imported.vsAi);setThinking(imported.thinking ?? false);
+    setCountdown(imported.countdown ?? 3);setPrediction(imported.prediction ?? null);predictionRef.current=imported.prediction ?? null;
+    setLogs(imported.logs ?? []);setStats(imported.stats ?? {total:0,hits:0,ppoints:0,score:0});
+    setResult(imported.result ?? null);setEnded(imported.ended ?? false);setReviewingBoard(false);
   };
   const place = (next, r, c, player) => {
     next[r][c] = player;
@@ -115,6 +123,7 @@ export default function GuessGomoku() {
           <div className="stats-row"><div><small>予想数</small><b>{stats.total}</b></div><div><small>的中</small><b>{stats.hits}</b></div><div><small>的中率</small><b>{accuracy}%</b></div></div>
           <button className="game-button primary full" onClick={() => restart()}>盤面リセット</button>
           <button className="game-button full" onClick={restore} disabled={!recovery}>保存した盤面を復元</button>
+          <BoardSaveControls gameId="guess-gomoku" snapshot={snapshot} validateSnapshot={isGuessSnapshot} onImport={importBoard} storageKey={guessSaveKey} recovery={recovery}/>
           <p className="help-text">盤面はこのブラウザーに自動保存されます。</p>
           <div className="button-row"><button className="game-button" onClick={() => restart(true)}>VS AI</button><button className="game-button" onClick={() => restart(false)}>2P 対戦</button></div>
         </section>

@@ -3,6 +3,7 @@ import GameLayout from '../components/GameLayout.jsx';
 import GomokuBoard from '../components/GomokuBoard.jsx';
 import { playStoneSound } from '../components/playStoneSound.js';
 import { boardSaveStorageKey, readBoardSave, writeBoardSave } from '../components/boardSave.js';
+import BoardSaveControls from '../components/BoardSaveControls.jsx';
 import { emptyBoard, hasFive } from './pointgomoku.js';
 import { chooseRecycleAction } from './recycleCpu.js';
 
@@ -99,6 +100,14 @@ export default function RecycleGomoku() {
     setHistory(history.slice(0, -steps)); setSelected(null); setStatus('手を戻しました。');
   };
   const pass = () => { save(); const nextTurn=3-turn; setTurn(nextTurn); setPhase(actionDefault(counts[nextTurn])); setSelected(null); setSeconds(15); setLogs(old=>[{player:turn,type:'PASS'},...old]); };
+  const importBoard = imported => {
+    setBoard(cloneBoard(imported.board));setTurn(imported.turn);setMode(imported.mode);setLimit(imported.limit);
+    setLimitDraft(imported.limitDraft ?? imported.limit);setPhase(imported.phase);
+    setHistory(imported.history.map(item=>({...item,board:cloneBoard(item.board),seen:new Set(item.seen)})));
+    setSeen(new Set(imported.seen));setWinner(imported.winner);setTimerEnabled(imported.timerEnabled ?? false);
+    setSeconds(imported.seconds ?? 15);setLogs(imported.logs ?? []);setSelected(null);
+    setStatus('JSONから盤面を復元しました。');
+  };
 
   useEffect(() => {
     if (winner || mode !== 'AI' || turn !== 2) return undefined;
@@ -134,6 +143,7 @@ export default function RecycleGomoku() {
         <div className="inventory"><span>⚫ {counts[1]}/{limit} ({limit-counts[1]}個未配置)</span><span>⚪ {counts[2]}/{limit} ({limit-counts[2]}個未配置)</span></div>
         <div className="button-row"><button className="game-button" disabled={!history.length} onClick={undo}>待った (1手戻す)</button><button className="game-button" onClick={pass}>パス</button><button className="game-button" onClick={()=>setRules(true)}>ルール</button></div>
         <button className="game-button full" onClick={restore} disabled={!recovery}>保存した盤面を復元</button>
+        <BoardSaveControls gameId="recycle-gomoku" snapshot={snapshot} validateSnapshot={isRecycleSnapshot} onImport={importBoard} storageKey={recycleSaveKey} recovery={recovery}/>
         <p className="help-text">盤面はこのブラウザーに自動保存されます。</p>
       </section>
       <section className="game-panel"><h2>棋譜・対局履歴 <small>{logs.length}手</small></h2><div className="log-list">{logs.map((m,i)=><div className="log-entry" key={i}>{m.player===1?'黒':'白'} · {m.type==='PASS'?'パス':m.type==='PLACE'?`(${m.r+1},${m.c+1}) に配置`:`(${m.fromR+1},${m.fromC+1}) → (${m.r+1},${m.c+1})`}</div>)}</div></section>

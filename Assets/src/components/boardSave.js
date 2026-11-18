@@ -29,3 +29,41 @@ export function writeBoardSave(storageKey, current, recovery = null) {
     recovery,
   }));
 }
+
+export function createBoardSaveJson(gameId, variant, current, recovery = null) {
+  return JSON.stringify({
+    version: 1,
+    gameId,
+    variant,
+    current,
+    recovery,
+  }, null, 2);
+}
+
+export function downloadBoardSave(gameId, variant, current, recovery = null) {
+  const json = createBoardSaveJson(gameId, variant, current, recovery);
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `${gameId}-${variant}-board.json`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+  return json;
+}
+
+export async function readBoardSaveFile(file, validateSnapshot) {
+  if (!file) throw new Error('JSONファイルが選択されていません。');
+  const text = await file.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error('有効なJSONファイルではありません。');
+  }
+  if (data?.version !== 1) throw new Error('対応していない盤面ファイルです。');
+  if (!validateSnapshot(data.current)) throw new Error('盤面データが壊れているか、このゲームと形式が一致しません。');
+  return data.current;
+}
