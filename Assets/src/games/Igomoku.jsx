@@ -14,7 +14,7 @@ const igomokuSaveKey=boardSaveStorageKey('igomoku');
 function isIgomokuSnapshot(value) {
   return value && Array.isArray(value.board) && value.board.length===19
     && value.board.every(row=>Array.isArray(row)&&row.length===19&&row.every(cell=>cell===0||cell===1||cell===2))
-    && (value.turn===1||value.turn===2) && (value.mode==='P2P'||value.mode==='AI')
+    && (value.turn===1||value.turn===2) && (value.mode==='P2P'||value.mode==='CPU')
     && value.captures && Number.isInteger(value.captures[1]) && Number.isInteger(value.captures[2])
     && Array.isArray(value.seen) && value.seen.every(item=>typeof item==='string')
     && Array.isArray(value.history) && value.history.every(item=>item
@@ -43,8 +43,8 @@ export default function Igomoku() {
   const snapshot=()=>({
     board, turn, mode, last, captures:{...captures}, seen:[...seen], history:history.map(item=>({...item, seen:[...item.seen]})), winner,
   });
-  const place=(r,c,player=turn,fromAI=false)=>{
-    if(winner || (mode==='AI' && turn===2 && !fromAI))return;
+  const place=(r,c,player=turn,fromCPU=false)=>{
+    if(winner || (mode==='CPU' && turn===2 && !fromCPU))return;
     if(board[r][c]){setMessage('その交点には既に石があります。');return;}
     const move=captureMove(board,r,c,player);
     if(!move){setMessage('呼吸点がない自殺手は打てません。');return;}
@@ -57,7 +57,7 @@ export default function Igomoku() {
     setMessage(move.captured?`${player===1?'黒':'白'}が石を${move.captured}個取りました。`:`${player===1?'黒':'白'}: (${r+1}, ${c+1})`);
     setTurn(3-player);
   };
-  const pass=(player=turn,fromAI=false)=>{if(!winner&&player===turn&&!(mode==='AI'&&player===2&&!fromAI)){setMessage(`${player===1?'黒':'白'}がパスしました。`);setTurn(3-player);}};
+  const pass=(player=turn,fromCPU=false)=>{if(!winner&&player===turn&&!(mode==='CPU'&&player===2&&!fromCPU)){setMessage(`${player===1?'黒':'白'}がパスしました。`);setTurn(3-player);}};
   const reset=(nextMode=mode)=>{
     const hasProgress=board.some(row=>row.some(cell=>cell!==0))||history.length>0||winner>0;
     if(hasProgress)setRecovery(snapshot());
@@ -72,7 +72,7 @@ export default function Igomoku() {
     setWinner(recovery.winner);setRecovery(null);setShowResult(false);setReviewing(false);
     setReviewIndex(0);setMessage('保存した盤面を復元しました。');
   };
-  const undo=()=>{if(!history.length)return;const steps=mode==='AI'&&(turn===1||winner===2)&&history.length>1?2:1;const prev=history[history.length-steps];setBoard(prev.board);setTurn(prev.turn);setLast(prev.last);setCaptures(prev.captures);setSeen(prev.seen);setHistory(h=>h.slice(0,-steps));setWinner(0);setShowResult(false);setReviewing(false);setReviewIndex(0);};
+  const undo=()=>{if(!history.length)return;const steps=mode==='CPU'&&(turn===1||winner===2)&&history.length>1?2:1;const prev=history[history.length-steps];setBoard(prev.board);setTurn(prev.turn);setLast(prev.last);setCaptures(prev.captures);setSeen(prev.seen);setHistory(h=>h.slice(0,-steps));setWinner(0);setShowResult(false);setReviewing(false);setReviewIndex(0);};
   const startReview=()=>{setReviewIndex(history.length);setReviewing(true);setShowResult(false);};
   const returnToFinalBoard=()=>{setReviewIndex(history.length);setReviewing(false);};
   const importBoard=imported=>{
@@ -90,8 +90,8 @@ export default function Igomoku() {
   },[board,turn,mode,last,captures,seen,history,winner,recovery]);
 
   useEffect(()=>{
-    if(mode!=='AI'||turn!==2||winner)return undefined;
-    setMessage('AIが呼吸点を探しています…');
+    if(mode!=='CPU'||turn!==2||winner)return undefined;
+    setMessage('CPUが呼吸点を探しています…');
     const timer=setTimeout(()=>{
       const move=chooseGomokuIgoMove(board,2,seen);
       if(move)place(move.r,move.c,2,true);
@@ -101,14 +101,14 @@ export default function Igomoku() {
   },[board,turn,mode,winner,seen]);
 
   return <GameLayout title="囲碁五目並べ" subtitle="「5連で勝利」×「囲めば消える」新感覚ボードゲーム" theme="igomoku">
-    <main className="igomoku-layout"><aside className="game-sidebar"><section className="game-panel"><p className="eyebrow">手番</p><div className="moves-turn"><i className={`turn-disc ${(reviewing?reviewedState.turn:turn)===1?'black':'white'}`}/>{reviewing?`盤面確認中 (${reviewIndex}/${history.length}手)`:winner?`${winner===1?'黒':'白'}の勝利`:turn===1?'黒番 (先手)':mode==='AI'?'白番 (AI)':'白番 (後手)'}</div>
+    <main className="igomoku-layout"><aside className="game-sidebar"><section className="game-panel"><p className="eyebrow">手番</p><div className="moves-turn"><i className={`turn-disc ${(reviewing?reviewedState.turn:turn)===1?'black':'white'}`}/>{reviewing?`盤面確認中 (${reviewIndex}/${history.length}手)`:winner?`${winner===1?'黒':'白'}の勝利`:turn===1?'黒番 (先手)':mode==='CPU'?'白番 (CPU)':'白番 (後手)'}</div>
       <div className="capture-counts"><div>⚫ 黒の捕獲 <b>{(reviewing?reviewedState.captures:captures)[1]}</b></div><div>⚪ 白の捕獲 <b>{(reviewing?reviewedState.captures:captures)[2]}</b></div></div>
       <p className="moves-message">{reviewing?`${reviewIndex}手目の盤面を表示中です。`:message}</p>
       {reviewing&&<div className="button-row"><button className="game-button" disabled={reviewIndex===0} onClick={()=>setReviewIndex(index=>Math.max(0,index-1))}>前の手</button><button className="game-button" disabled={reviewIndex>=history.length} onClick={()=>setReviewIndex(index=>Math.min(history.length,index+1))}>次の手</button></div>}
       {reviewing&&<button className="game-button full" onClick={returnToFinalBoard}>最終盤面に戻る</button>}
       {winner>0&&!reviewing&&<button className="game-button primary full" onClick={startReview}>対局を見直す</button>}
-      <div className="button-row"><button className={`game-button ${mode==='P2P'?'active':''}`} onClick={()=>reset('P2P')}>二人で対戦</button><button className={`game-button ${mode==='AI'?'active':''}`} onClick={()=>reset('AI')}>VS AI (後手)</button></div>
-      <div className="button-column"><button className="game-button primary" disabled={winner>0||(mode==='AI'&&turn===2)} onClick={()=>pass()}>パス</button><button className="game-button" disabled={!history.length||winner>0} onClick={undo}>一手戻す</button><button className="game-button" onClick={()=>setRules(true)}>ルール説明</button><button className="game-button" onClick={()=>reset()}>盤面リセット</button></div>
+      <div className="button-row"><button className={`game-button ${mode==='P2P'?'active':''}`} onClick={()=>reset('P2P')}>二人で対戦</button><button className={`game-button ${mode==='CPU'?'active':''}`} onClick={()=>reset('CPU')}>VS CPU (後手)</button></div>
+      <div className="button-column"><button className="game-button primary" disabled={winner>0||(mode==='CPU'&&turn===2)} onClick={()=>pass()}>パス</button><button className="game-button" disabled={!history.length||winner>0} onClick={undo}>一手戻す</button><button className="game-button" onClick={()=>setRules(true)}>ルール説明</button><button className="game-button" onClick={()=>reset()}>盤面リセット</button></div>
       <button className="game-button full" onClick={restore} disabled={!recovery}>保存した盤面を復元</button>
       <BoardSaveControls gameId="igomoku" snapshot={snapshot} validateSnapshot={isIgomokuSnapshot} onImport={importBoard} storageKey={igomokuSaveKey} recovery={recovery}/>
       <p className="help-text">盤面はこのブラウザーに自動保存されます。</p>

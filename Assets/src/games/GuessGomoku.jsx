@@ -117,15 +117,15 @@ export default function GuessGomoku() {
   return <GameLayout title="Gomoku Prediction" subtitle="待ち時間に次の一手を予想" theme="prediction">
     <main className="prediction-layout">
       <aside className="game-sidebar">
-        <section className="game-panel"><div className="panel-heading"><span>対局ステータス</span><span className="badge">{vsAi ? 'VS AI' : '2P'}</span></div>
-          <div className="turn-card"><i className={`turn-disc ${turn === 1 ? 'black' : 'white'}`} /><div><small>手番</small><strong>{thinking ? `AI思考中 (${countdown}s)` : turn === 1 ? 'あなたの番 (黒)' : vsAi ? 'AIの番 (白)' : '白の番'}</strong></div></div>
-          <div className="prediction-card"><strong>次手予想</strong><p>AIが考えている間に、次に打つ場所を選んでください。</p><span>的中 +1 pt　·　外れ -1 pt</span><small>勝利ボーナス +100 pt</small></div>
+        <section className="game-panel"><div className="panel-heading"><span>対局ステータス</span><span className="badge">{vsAi ? 'VS CPU' : '2P'}</span></div>
+          <div className="turn-card"><i className={`turn-disc ${turn === 1 ? 'black' : 'white'}`} /><div><small>手番</small><strong>{thinking ? `CPU思考中 (${countdown}s)` : turn === 1 ? 'あなたの番 (黒)' : vsAi ? 'CPUの番 (白)' : '白の番'}</strong></div></div>
+          <div className="prediction-card"><strong>次手予想</strong><p>CPUが考えている間に、次に打つ場所を選んでください。</p><span>的中 +1 pt　·　外れ -1 pt</span><small>勝利ボーナス +100 pt</small></div>
           <div className="stats-row"><div><small>予想数</small><b>{stats.total}</b></div><div><small>的中</small><b>{stats.hits}</b></div><div><small>的中率</small><b>{accuracy}%</b></div></div>
           <button className="game-button primary full" onClick={() => restart()}>盤面リセット</button>
           <button className="game-button full" onClick={restore} disabled={!recovery}>保存した盤面を復元</button>
           <BoardSaveControls gameId="guess-gomoku" snapshot={snapshot} validateSnapshot={isGuessSnapshot} onImport={importBoard} storageKey={guessSaveKey} recovery={recovery}/>
           <p className="help-text">盤面はこのブラウザーに自動保存されます。</p>
-          <div className="button-row"><button className="game-button" onClick={() => restart(true)}>VS AI</button><button className="game-button" onClick={() => restart(false)}>2P 対戦</button></div>
+          <div className="button-row"><button className="game-button" onClick={() => restart(true)}>VS CPU</button><button className="game-button" onClick={() => restart(false)}>2P 対戦</button></div>
         </section>
         <section className="game-panel"><h2>予想ログ・対局履歴</h2><div className="log-list">{logs.length ? logs.map((entry,i)=><div className={`log-entry ${entry.type}`} key={i}><span>{entry.message}</span><time>{entry.time}</time></div>) : <p className="muted">対局が始まると予想結果が表示されます</p>}</div></section>
       </aside>

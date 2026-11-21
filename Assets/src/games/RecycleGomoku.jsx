@@ -14,7 +14,7 @@ const recycleSaveKey = boardSaveStorageKey('recycle-gomoku');
 function isRecycleSnapshot(value) {
   return value && Array.isArray(value.board) && value.board.length === 15
     && value.board.every(row => Array.isArray(row) && row.length === 15 && row.every(cell => cell === 0 || cell === 1 || cell === 2))
-    && (value.turn === 1 || value.turn === 2) && (value.mode === 'P2P' || value.mode === 'AI')
+    && (value.turn === 1 || value.turn === 2) && (value.mode === 'P2P' || value.mode === 'CPU')
     && Number.isInteger(value.limit) && value.limit >= 5 && value.limit <= 30
     && (value.phase === 'PLACE' || value.phase === 'MOVE')
     && Array.isArray(value.seen) && value.seen.every(item => typeof item === 'string')
@@ -80,7 +80,7 @@ export default function RecycleGomoku() {
     return true;
   };
   const clickCell = (r,c) => {
-    if (winner || (mode === 'AI' && turn === 2)) return;
+    if (winner || (mode === 'CPU' && turn === 2)) return;
     if (phase === 'PLACE') {
       if (counts[turn] >= limit) { setStatus('石の上限です。移動フェーズを選んでください。'); return; }
       if (board[r][c]) return;
@@ -94,7 +94,7 @@ export default function RecycleGomoku() {
   };
   const undo = () => {
     if (!history.length) return;
-    const steps = mode === 'AI' && turn === 1 && history.length > 1 ? 2 : 1;
+    const steps = mode === 'CPU' && turn === 1 && history.length > 1 ? 2 : 1;
     const past = history[history.length - steps];
     setBoard(past.board); setTurn(past.turn); setPhase(past.phase); setSeen(past.seen); setWinner(past.winner);
     setHistory(history.slice(0, -steps)); setSelected(null); setStatus('手を戻しました。');
@@ -110,7 +110,7 @@ export default function RecycleGomoku() {
   };
 
   useEffect(() => {
-    if (winner || mode !== 'AI' || turn !== 2) return undefined;
+    if (winner || mode !== 'CPU' || turn !== 2) return undefined;
     const id = setTimeout(() => {
       const action = chooseRecycleAction(cloneBoard(board), 2, limit, counts, actionDefault(counts[2]), seen);
       if (!action) { pass(); return; }
@@ -133,11 +133,11 @@ export default function RecycleGomoku() {
 
   return <GameLayout title="リサイクル・ゴモク" subtitle="Recycle Gomoku (15×15 / 石数変更可)" theme="recycle">
     <main className="recycle-layout"><aside className="game-sidebar">
-      <section className="game-panel"><h2>対局設定</h2><div className="button-row"><button className={`game-button ${mode==='P2P'?'active':''}`} onClick={()=>reset('P2P')}>二人で遊ぶ</button><button className={`game-button ${mode==='AI'?'active':''}`} onClick={()=>reset('AI')}>VS AI (後手)</button></div>
+      <section className="game-panel"><h2>対局設定</h2><div className="button-row"><button className={`game-button ${mode==='P2P'?'active':''}`} onClick={()=>reset('P2P')}>二人で遊ぶ</button><button className={`game-button ${mode==='CPU'?'active':''}`} onClick={()=>reset('CPU')}>VS CPU (後手)</button></div>
         <label className="setting-row"><span>思考時間制限</span><input type="checkbox" checked={timerEnabled} onChange={e=>setTimerEnabled(e.target.checked)}/></label>
         <label className="setting-row"><span>各プレイヤーの石の上限</span><input type="number" min="5" max="30" value={limitDraft} onChange={e=>setLimitDraft(Number(e.target.value))} onBlur={()=>reset(mode,Math.max(5,Math.min(30,limitDraft||15)))}/></label>
       </section>
-      <section className="game-panel"><div className="panel-heading"><strong>{winner ? (winner===1?'黒':'白')+'の勝利' : turn===1?'黒番 (先手)':mode==='AI'?'白番 (AI)':'白番 (後手)'}</strong><span className="badge">{phase==='PLACE'?'配置':'移動'}</span></div>
+      <section className="game-panel"><div className="panel-heading"><strong>{winner ? (winner===1?'黒':'白')+'の勝利' : turn===1?'黒番 (先手)':mode==='CPU'?'白番 (CPU)':'白番 (後手)'}</strong><span className="badge">{phase==='PLACE'?'配置':'移動'}</span></div>
         <p className="recycle-status">{status}</p><div className="button-row"><button className={`game-button ${phase==='PLACE'?'active':''}`} disabled={counts[turn]>=limit || (mode===String.fromCharCode(65,73) && turn===2)} onClick={()=>{setPhase('PLACE');setSelected(null);}}>石を置く</button><button className={`game-button ${phase==='MOVE'?'active':''}`} disabled={!counts[turn]} onClick={()=>{setPhase('MOVE');setSelected(null);}}>石を移動</button></div>
         {timerEnabled && <p>残り {seconds}s</p>}
         <div className="inventory"><span>⚫ {counts[1]}/{limit} ({limit-counts[1]}個未配置)</span><span>⚪ {counts[2]}/{limit} ({limit-counts[2]}個未配置)</span></div>
